@@ -57,6 +57,23 @@ export default async function SettingsPage({
             <input type="checkbox" name="requireSignatureToComplete" defaultChecked={settings.requireSignatureToComplete} />
             Technicians must capture a signature to complete a visit
           </label>
+          <Field label="Tracking hours start">
+            <input className={inputClass} name="trackingStart" defaultValue={settings.trackingStart} required />
+          </Field>
+          <Field label="Tracking hours end">
+            <input className={inputClass} name="trackingEnd" defaultValue={settings.trackingEnd} required />
+          </Field>
+          <Field label="Keep location points (days)">
+            <input className={inputClass} name="locationRetentionDays" type="number" min={1} defaultValue={settings.locationRetentionDays} required />
+          </Field>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="reportRemindersEnabled" defaultChecked={settings.reportRemindersEnabled} />
+            Remind a technician after they leave a visit if notes or photos are missing
+          </label>
+          <Field label="Reminder grace (minutes)">
+            <input className={inputClass} name="reportReminderGraceMinutes" type="number" min={0} defaultValue={Math.round(settings.reportReminderGraceSeconds / 60)} required />
+          </Field>
+          <p className="text-xs text-muted">Company policy point for counsel review. This is not legal advice. Tracking is disclosed, limited to these hours, and starts only after the technician acknowledges the notice. There is no covert mode.</p>
           <button className={buttonClass} type="submit">
             Save
           </button>

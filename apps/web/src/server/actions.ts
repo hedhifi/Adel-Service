@@ -585,6 +585,11 @@ export async function updateSettingsAction(formData: FormData) {
       taxLabel: text(formData, "taxLabel"),
       requireSignatureToComplete: formData.get("requireSignatureToComplete") === "on",
       shopAddress: text(formData, "shopAddress"),
+      trackingStart: text(formData, "trackingStart") || undefined,
+      trackingEnd: text(formData, "trackingEnd") || undefined,
+      locationRetentionDays: Number(text(formData, "locationRetentionDays") || "14"),
+      reportRemindersEnabled: formData.get("reportRemindersEnabled") === "on",
+      reportReminderGraceSeconds: Number(text(formData, "reportReminderGraceMinutes") || "2") * 60,
     });
     redirect("/settings?notice=Company settings saved");
   } catch (err) {

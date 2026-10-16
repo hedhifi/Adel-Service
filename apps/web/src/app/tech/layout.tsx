@@ -1,3 +1,4 @@
+import { LocationReporter } from "@/components/location-reporter";
 import { logoutAction } from "@/server/actions";
 import { requireUser } from "@/server/session";
 import Link from "next/link";
@@ -25,7 +26,10 @@ export default async function TechLayout({ children }: { children: React.ReactNo
           </form>
         </div>
       </header>
-      <main className="px-4 py-4">{children}</main>
+      <main className="px-4 py-4">
+        <LocationReporter />
+        {children}
+      </main>
     </div>
   );
 }

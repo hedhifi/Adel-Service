@@ -85,6 +85,21 @@ export {
 } from "./billing";
 export { getDashboard } from "./dashboard";
 export {
+  GEOFENCE_RADIUS_METERS,
+  LOCATION_NOTICE,
+  acknowledgeDevice,
+  bearerSecret,
+  etaMinutes,
+  getLiveMap,
+  ingestLocations,
+  issueDeviceToken,
+  listLocationTrail,
+  listNotifications,
+  processReportReminders,
+  purgeOldLocationPoints,
+  withinTrackingHours,
+} from "./location";
+export {
   activeSpeechPhrases,
   buildSpeechGrammar,
   NOT_TRANSLATED,

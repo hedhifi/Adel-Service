@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Adel Field",
+    "slug": "adel-field",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.adelelectric.field",
+      "supportsTablet": false,
+      "infoPlist": {
+        "UIBackgroundModes": ["location"],
+        "NSLocationWhenInUseUsageDescription": "Adel Electric uses this company phone during tracking hours so the office can see the visit you are on.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Adel Electric uses this company phone during tracking hours, including when the screen is locked, so arrive and depart at a job can be recorded. There is no covert mode."
+      }
+    },
+    "android": {
+      "package": "com.adelelectric.field",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Adel Electric uses this company phone during tracking hours, including when the screen is locked, so arrive and depart at a job can be recorded. There is no covert mode.",
+          "locationWhenInUsePermission": "Adel Electric uses this company phone during tracking hours so the office can see the visit you are on.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
+    ]
+  }
+}

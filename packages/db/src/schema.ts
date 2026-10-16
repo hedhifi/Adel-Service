@@ -1,5 +1,6 @@
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -22,6 +23,7 @@ export const paymentMethod = pgEnum("payment_method", ["card", "check", "cash", 
 export const lineKind = pgEnum("line_kind", ["labor", "material", "other"]);
 export const webhookDeliveryStatus = pgEnum("webhook_delivery_status", ["pending", "delivered", "failed"]);
 export const speechTermStatus = pgEnum("speech_term_status", ["active", "suggested"]);
+export const geofenceKind = pgEnum("geofence_kind", ["arrive", "depart"]);
 
 export type Role = (typeof userRole.enumValues)[number];
 export type RequestStatus = (typeof requestStatus.enumValues)[number];
@@ -54,6 +56,11 @@ export const companySettings = pgTable("company_settings", {
   taxLabel: text("tax_label").notNull(),
   requireSignatureToComplete: boolean("require_signature_to_complete").notNull().default(true),
   shopAddress: text("shop_address").notNull(),
+  trackingStart: text("tracking_start").notNull().default("07:00"),
+  trackingEnd: text("tracking_end").notNull().default("18:00"),
+  locationRetentionDays: integer("location_retention_days").notNull().default(14),
+  reportRemindersEnabled: boolean("report_reminders_enabled").notNull().default(true),
+  reportReminderGraceSeconds: integer("report_reminder_grace_seconds").notNull().default(120),
 });
 
 export const users = pgTable("users", {
@@ -113,6 +120,8 @@ export const properties = pgTable(
     state: text("state").notNull().default("FL"),
     postalCode: text("postal_code").notNull(),
     accessNotes: text("access_notes"),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("properties_customer_idx").on(table.customerId)],
@@ -232,6 +241,8 @@ export const visits = pgTable(
     signedByRaw: text("signed_by_raw"),
     signedAt: timestamp("signed_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    reportRemindedAt: timestamp("report_reminded_at", { withTimezone: true }),
+    reportReminderDueAt: timestamp("report_reminder_due_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -413,6 +424,78 @@ export const speechTerms = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("speech_terms_status_idx").on(table.status)],
+);
+
+export const deviceTokens = pgTable(
+  "device_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    tokenPrefix: text("token_prefix").notNull(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("device_tokens_user_idx").on(table.userId)],
+);
+
+export const locationPoints = pgTable(
+  "location_points",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    deviceTokenId: uuid("device_token_id")
+      .notNull()
+      .references(() => deviceTokens.id, { onDelete: "cascade" }),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracyMeters: doublePrecision("accuracy_meters").notNull(),
+    batteryPercent: integer("battery_percent").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("location_points_user_time_idx").on(table.userId, table.recordedAt)],
+);
+
+export const geofenceEvents = pgTable(
+  "geofence_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    visitId: uuid("visit_id")
+      .notNull()
+      .references(() => visits.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    kind: geofenceKind("kind").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+  },
+  (table) => [index("geofence_events_visit_idx").on(table.visitId, table.recordedAt)],
+);
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    visitId: uuid("visit_id").references(() => visits.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    href: text("href").notNull(),
+    pushStatus: text("push_status").notNull().default("unavailable"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (table) => [index("notifications_user_idx").on(table.userId, table.createdAt)],
 );
 
 export const counters = pgTable("counters", {

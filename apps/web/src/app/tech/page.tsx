@@ -1,7 +1,7 @@
 import { BrandChip, Empty, StatusPill } from "@/components/ui";
 import { dayLabel, when } from "@/lib/format";
 import { companyToday, shiftDay } from "@adel/db/zoned";
-import { getCompanySettings, listVisits } from "@adel/core";
+import { getCompanySettings, listNotifications, listVisits } from "@adel/core";
 import { requireUser } from "@/server/session";
 import Link from "next/link";
 
@@ -10,7 +10,7 @@ export default async function TechHome({ searchParams }: { searchParams: Promise
   const query = await searchParams;
   const settings = await getCompanySettings();
   const day = query.day || companyToday(settings.timeZone);
-  const { data } = await listVisits(actor, { day });
+  const [{ data }, notices] = await Promise.all([listVisits(actor, { day }), listNotifications(actor)]);
   return (
     <div className="space-y-4">
       <div>
@@ -24,6 +24,17 @@ export default async function TechHome({ searchParams }: { searchParams: Promise
         <Link href={`/tech?day=${shiftDay(day, 1)}`}>Next</Link>
       </div>
       <p className="text-sm text-muted">Install Adel Service from the browser menu to keep it on your home screen.</p>
+      {notices.data.length ? (
+        <ul className="space-y-2">
+          {notices.data.map((notice) => (
+            <li key={notice.id}>
+              <a className="block rounded-md border border-line bg-card px-3 py-2 text-sm font-semibold text-pine" href={notice.href}>
+                {notice.body}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {data.length === 0 ? <Empty>Nothing is assigned for this day.</Empty> : null}
       <ul className="space-y-3">
         {data.map((visit) => (

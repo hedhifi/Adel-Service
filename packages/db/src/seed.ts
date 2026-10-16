@@ -38,6 +38,8 @@ const {
   timeEntries,
   users,
   visitForms,
+  deviceTokens,
+  locationPoints,
   speechTerms,
   visitNotes,
   visits,
@@ -91,7 +93,7 @@ async function addCustomer(input: {
   email: string;
   phone: string;
   notes: string;
-  property: { label: string; line1: string; city: string; postalCode: string; accessNotes: string };
+  property: { label: string; line1: string; city: string; postalCode: string; accessNotes: string; latitude: number; longitude: number };
 }) {
   const [customer] = await db
     .insert(customers)
@@ -122,6 +124,8 @@ const camille = await addCustomer({
     city: "Naples",
     postalCode: "34102",
     accessNotes: "Gate code 1947. Two dogs stay in the lanai until noon.",
+    latitude: 26.2126,
+    longitude: -81.807,
   },
 });
 
@@ -137,6 +141,8 @@ const helen = await addCustomer({
     city: "Sarasota",
     postalCode: "34236",
     accessNotes: "Park in the drive, not on the brick street. Lockbox 4419 on the side gate.",
+    latitude: 27.3364,
+    longitude: -82.5406,
   },
 });
 
@@ -152,6 +158,8 @@ const anya = await addCustomer({
     city: "Coral Gables",
     postalCode: "33134",
     accessNotes: "Call from the gate. Carport is behind the house. Do not block the neighbor's easement.",
+    latitude: 25.749,
+    longitude: -80.258,
   },
 });
 
@@ -167,6 +175,8 @@ const iyer = await addCustomer({
     city: "Tampa",
     postalCode: "33606",
     accessNotes: "Rack is in the upstairs closet. House manager Luis can let you in after 12.",
+    latitude: 27.921,
+    longitude: -82.481,
   },
 });
 
@@ -182,6 +192,8 @@ const marcus = await addCustomer({
     city: "Palm Beach",
     postalCode: "33480",
     accessNotes: "Use the service alley. Irrigation timer is in the garage.",
+    latitude: 26.705,
+    longitude: -80.037,
   },
 });
 
@@ -197,6 +209,8 @@ const lila = await addCustomer({
     city: "Fort Lauderdale",
     postalCode: "33301",
     accessNotes: "Concierge has the service elevator code. Unit 1402.",
+    latitude: 26.119,
+    longitude: -80.137,
   },
 });
 
@@ -423,7 +437,7 @@ const [marcoVisit] = await db
     technicianId: marco.id,
     scheduledStart: zonedDateTime(today, "08:30", timeZone),
     scheduledEnd: zonedDateTime(today, "11:30", timeZone),
-    status: "scheduled",
+    status: "en_route",
   })
   .returning();
 await db.insert(visitForms).values({
@@ -470,6 +484,39 @@ await db.insert(timeEntries).values({
   userId: sofia.id,
   startedAt: zonedDateTime(today, "13:05", timeZone),
 });
+
+const marcoSecret = newSecret("adeldev_");
+const sofiaSecret = newSecret("adeldev_");
+const [marcoDevice] = await db
+  .insert(deviceTokens)
+  .values({
+    userId: marco.id,
+    name: "Marco company phone",
+    tokenHash: hashSecret(marcoSecret),
+    tokenPrefix: marcoSecret.slice(0, 16),
+    acknowledgedAt: new Date(),
+  })
+  .returning();
+const [sofiaDevice] = await db
+  .insert(deviceTokens)
+  .values({
+    userId: sofia.id,
+    name: "Sofia company phone",
+    tokenHash: hashSecret(sofiaSecret),
+    tokenPrefix: sofiaSecret.slice(0, 16),
+    acknowledgedAt: new Date(),
+  })
+  .returning();
+const now = Date.now();
+await db.insert(locationPoints).values([
+  { userId: marco.id, deviceTokenId: marcoDevice.id, recordedAt: new Date(now - 28 * 60 * 1000), latitude: 25.9, longitude: -80.31, accuracyMeters: 18, batteryPercent: 74 },
+  { userId: marco.id, deviceTokenId: marcoDevice.id, recordedAt: new Date(now - 20 * 60 * 1000), latitude: 25.86, longitude: -80.29, accuracyMeters: 14, batteryPercent: 72 },
+  { userId: marco.id, deviceTokenId: marcoDevice.id, recordedAt: new Date(now - 12 * 60 * 1000), latitude: 25.82, longitude: -80.27, accuracyMeters: 12, batteryPercent: 70 },
+  { userId: marco.id, deviceTokenId: marcoDevice.id, recordedAt: new Date(now - 4 * 60 * 1000), latitude: 25.79, longitude: -80.262, accuracyMeters: 9, batteryPercent: 68 },
+  { userId: sofia.id, deviceTokenId: sofiaDevice.id, recordedAt: new Date(now - 18 * 60 * 1000), latitude: 27.95, longitude: -82.5, accuracyMeters: 20, batteryPercent: 81 },
+  { userId: sofia.id, deviceTokenId: sofiaDevice.id, recordedAt: new Date(now - 8 * 60 * 1000), latitude: 27.93, longitude: -82.488, accuracyMeters: 11, batteryPercent: 79 },
+  { userId: sofia.id, deviceTokenId: sofiaDevice.id, recordedAt: new Date(now - 2 * 60 * 1000), latitude: 27.921, longitude: -82.481, accuracyMeters: 8, batteryPercent: 78 },
+]);
 
 await db.insert(visits).values({
   jobId: marcusJob.id,

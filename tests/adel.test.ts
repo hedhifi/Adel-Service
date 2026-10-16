@@ -42,6 +42,7 @@ import { POST as loginRoute } from "../apps/web/src/app/api/auth/login/route";
 import { TOOL_NAMES } from "../packages/mcp/src/tools";
 import { PASSWORD, seedCompany } from "./helpers";
 import "./speech.test";
+import "./location.test";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PNG = Buffer.from(

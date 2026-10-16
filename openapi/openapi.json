@@ -38,6 +38,9 @@
     },
     {
       "name": "Public"
+    },
+    {
+      "name": "Location"
     }
   ],
   "security": [
@@ -1828,44 +1831,66 @@
     },
     "/api/v1/speech/cleanup": {
       "post": {
-        "tags": ["Speech"],
+        "tags": [
+          "Speech"
+        ],
         "summary": "Clean a dictated transcript",
-        "description": "Fuzzy-corrects dictionary spellings, then optionally rewrites filler through a configured model. With no API key, or when SPEECH_CLEANUP=off, the response is the dictionary-corrected transcript (mode passthrough). The raw speech-engine transcript is returned separately so the field can show the original.",
+        "description": "Fuzzy-corrects dictionary spellings, then optionally rewrites filler through a configured model.\nWith no API key, or when SPEECH_CLEANUP=off, the response is the dictionary-corrected transcript (mode passthrough).\nThe raw speech-engine transcript is returned separately so the field can show the original.\n",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["transcript"],
+                "required": [
+                  "transcript"
+                ],
                 "properties": {
-                  "transcript": { "type": "string" }
+                  "transcript": {
+                    "type": "string"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Cleaned text and the original transcript" }
+          "200": {
+            "description": "Cleaned text and the original transcript"
+          }
         }
       }
     },
     "/api/v1/terms": {
       "get": {
-        "tags": ["Speech"],
+        "tags": [
+          "Speech"
+        ],
         "summary": "List dictionary terms",
         "description": "Technicians see active terms. Office and admin can list suggested terms too.",
         "parameters": [
           {
             "name": "status",
             "in": "query",
-            "schema": { "type": "string", "enum": ["active", "suggested"] }
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "suggested"
+              ]
+            }
           }
         ],
-        "responses": { "200": { "description": "Terms" } }
+        "responses": {
+          "200": {
+            "description": "Terms"
+          }
+        }
       },
       "post": {
-        "tags": ["Speech"],
+        "tags": [
+          "Speech"
+        ],
         "summary": "Add an active dictionary term",
         "description": "Office and admin only.",
         "requestBody": {
@@ -1874,21 +1899,37 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["phrase"],
-                "properties": { "phrase": { "type": "string" } }
+                "required": [
+                  "phrase"
+                ],
+                "properties": {
+                  "phrase": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
         },
-        "responses": { "201": { "description": "Created" } }
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
       }
     },
     "/api/v1/terms/{id}": {
       "patch": {
-        "tags": ["Speech"],
+        "tags": [
+          "Speech"
+        ],
         "summary": "Edit a term or accept a suggestion",
         "description": "Office and admin only. Set status to active to accept a technician suggestion.",
-        "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1896,26 +1937,50 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "phrase": { "type": "string" },
-                  "status": { "type": "string", "enum": ["active", "suggested"] }
+                  "phrase": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "suggested"
+                    ]
+                  }
                 }
               }
             }
           }
         },
-        "responses": { "200": { "description": "Updated" } }
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
       },
       "delete": {
-        "tags": ["Speech"],
+        "tags": [
+          "Speech"
+        ],
         "summary": "Remove a dictionary term",
         "description": "Office and admin only.",
-        "parameters": [{ "$ref": "#/components/parameters/id" }],
-        "responses": { "200": { "description": "Removed" } }
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed"
+          }
+        }
       }
     },
     "/api/v1/terms/suggestions": {
       "post": {
-        "tags": ["Speech"],
+        "tags": [
+          "Speech"
+        ],
         "summary": "Suggest a spelling",
         "description": "Any signed-in user. Suggestions stay out of dictation until office or admin marks them active.",
         "requestBody": {
@@ -1924,13 +1989,204 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["phrase"],
-                "properties": { "phrase": { "type": "string" } }
+                "required": [
+                  "phrase"
+                ],
+                "properties": {
+                  "phrase": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
         },
-        "responses": { "201": { "description": "Suggested" } }
+        "responses": {
+          "201": {
+            "description": "Suggested"
+          }
+        }
+      }
+    },
+    "/api/v1/devices": {
+      "post": {
+        "tags": [
+          "Location"
+        ],
+        "summary": "Issue a device token for a technician phone",
+        "description": "Device tokens are separate from user API tokens and begin with `adeldev_`.\nThe secret is returned once. Pass `acknowledge: true` only after the technician\nhas seen the written location notice.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "acknowledge": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Device token secret, returned once"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/acknowledge": {
+      "post": {
+        "tags": [
+          "Location"
+        ],
+        "security": [],
+        "summary": "Acknowledge the location notice for a device token",
+        "description": "Send Authorization Bearer adeldev_…. Tracking is refused until this succeeds.",
+        "responses": {
+          "200": {
+            "description": "Device acknowledged"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/locations": {
+      "get": {
+        "tags": [
+          "Location"
+        ],
+        "summary": "Today's breadcrumb trail",
+        "description": "A technician can read only their own trail. Office and admin can pass `technicianId`.\n",
+        "parameters": [
+          {
+            "name": "technicianId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "day",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Points for that person and day"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Location"
+        ],
+        "security": [],
+        "summary": "Ingest a batch of location points",
+        "description": "Authenticate with a device token that begins with adeldev_. Each point needs a timestamp,\nlatitude, longitude, accuracy in meters, and battery percent. Points outside the\nconfigured tracking hours are skipped. Points older than the retention window are\nnot stored. The device must have acknowledged the written notice.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "points"
+                ],
+                "properties": {
+                  "points": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "recordedAt",
+                        "latitude",
+                        "longitude",
+                        "accuracyMeters",
+                        "batteryPercent"
+                      ],
+                      "properties": {
+                        "recordedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "latitude": {
+                          "type": "number"
+                        },
+                        "longitude": {
+                          "type": "number"
+                        },
+                        "accuracyMeters": {
+                          "type": "number"
+                        },
+                        "batteryPercent": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored and skipped counts"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/locations/live": {
+      "get": {
+        "tags": [
+          "Location"
+        ],
+        "summary": "Office live map",
+        "description": "Last position, freshness, today's trail, job pins, and en-route ETA. Office or admin.",
+        "responses": {
+          "200": {
+            "description": "Map payload"
+          }
+        }
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "Location"
+        ],
+        "summary": "In-app notifications for the signed-in person",
+        "description": "Includes a missing field-report reminder after a geofence departure, at most once per visit.",
+        "responses": {
+          "200": {
+            "description": "Notifications"
+          }
+        }
       }
     }
   },

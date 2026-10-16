@@ -25,6 +25,7 @@ tags:
   - name: Invoices
   - name: Settings
   - name: Public
+  - name: Location
 security:
   - cookieAuth: []
   - bearerAuth: []
@@ -1089,6 +1090,120 @@ paths:
       responses:
         "201":
           description: Suggested
+  /api/v1/devices:
+    post:
+      tags: [Location]
+      summary: Issue a device token for a technician phone
+      description: |
+        Device tokens are separate from user API tokens and begin with `adeldev_`.
+        The secret is returned once. Pass `acknowledge: true` only after the technician
+        has seen the written location notice.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                userId:
+                  type: string
+                  format: uuid
+                acknowledge:
+                  type: boolean
+      responses:
+        "201":
+          description: Device token secret, returned once
+  /api/v1/devices/acknowledge:
+    post:
+      tags: [Location]
+      security: []
+      summary: Acknowledge the location notice for a device token
+      description: "Send Authorization Bearer adeldev_…. Tracking is refused until this succeeds."
+      responses:
+        "200":
+          description: Device acknowledged
+        "401":
+          $ref: "#/components/responses/Error"
+  /api/v1/locations:
+    get:
+      tags: [Location]
+      summary: Today's breadcrumb trail
+      description: |
+        A technician can read only their own trail. Office and admin can pass `technicianId`.
+      parameters:
+        - name: technicianId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: day
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Points for that person and day
+    post:
+      tags: [Location]
+      security: []
+      summary: Ingest a batch of location points
+      description: |
+        Authenticate with a device token that begins with adeldev_. Each point needs a timestamp,
+        latitude, longitude, accuracy in meters, and battery percent. Points outside the
+        configured tracking hours are skipped. Points older than the retention window are
+        not stored. The device must have acknowledged the written notice.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [points]
+              properties:
+                points:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [recordedAt, latitude, longitude, accuracyMeters, batteryPercent]
+                    properties:
+                      recordedAt:
+                        type: string
+                        format: date-time
+                      latitude:
+                        type: number
+                      longitude:
+                        type: number
+                      accuracyMeters:
+                        type: number
+                      batteryPercent:
+                        type: integer
+      responses:
+        "200":
+          description: Stored and skipped counts
+        "403":
+          $ref: "#/components/responses/Error"
+  /api/v1/locations/live:
+    get:
+      tags: [Location]
+      summary: Office live map
+      description: Last position, freshness, today's trail, job pins, and en-route ETA. Office or admin.
+      responses:
+        "200":
+          description: Map payload
+  /api/v1/notifications:
+    get:
+      tags: [Location]
+      summary: In-app notifications for the signed-in person
+      description: Includes a missing field-report reminder after a geofence departure, at most once per visit.
+      responses:
+        "200":
+          description: Notifications
 components:
   securitySchemes:
     cookieAuth:

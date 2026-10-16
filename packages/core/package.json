@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./speech": "./src/speech-client.ts"
+    "./speech": "./src/speech-client.ts",
+    "./location-notice": "./src/location-notice.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

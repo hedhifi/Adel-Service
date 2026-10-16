@@ -27,10 +27,16 @@ export async function updateCompanySettings(actor: Actor, input: unknown) {
       taxLabel: z.string().trim().min(1).max(120),
       requireSignatureToComplete: z.boolean(),
       shopAddress: z.string().trim().min(1).max(300),
+      trackingStart: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      trackingEnd: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      locationRetentionDays: z.number().int().min(1).max(3650).optional(),
+      reportRemindersEnabled: z.boolean().optional(),
+      reportReminderGraceSeconds: z.number().int().min(0).max(3600).optional(),
     }),
     input,
   );
-  const [row] = await db.update(companySettings).set(data).where(eq(companySettings.id, "default")).returning();
+  const patch = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+  const [row] = await db.update(companySettings).set(patch).where(eq(companySettings.id, "default")).returning();
   if (!row) throw new AppError(500, "Company settings are missing. Run the seed.", "settings_missing");
   return { data: row };
 }

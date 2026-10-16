@@ -26,6 +26,7 @@ One Next.js app keeps the office desk and the installable field app on the same 
 - `packages/db` — schema, migration, seed
 - `packages/core` — customers through payments, webhooks, tokens
 - `packages/mcp` — MCP tools
+- `companion/` — Expo scaffold for company phones (not in the pnpm workspace, not a store build)
 - `openapi/openapi.yaml` — the API contract (`/api/openapi` serves the JSON copy)
 
 ## Run it
@@ -111,6 +112,14 @@ If `SPEECH_CLEANUP_API_KEY` is missing, still a placeholder that contains `repla
 A technician can suggest a spelling from the visit. It stays out of dictation until office or admin accepts it. Office and admin can add, edit, and remove terms in settings, the REST API, and the MCP tools `list_terms`, `create_term`, `update_term`, `delete_term`, and `suggest_term`.
 
 Each person has a dictation default of English or Spanish. The Dictate control also has an English / Spanish switch for this browser session; that switch does not change the saved default until they choose Save as my default. Spanish is recognized as `es-US`. English stays `en-US`. When a cleanup key is configured, Spanish is translated into English in the same pass that cleans the note. The prompt still forbids invented facts and changed numbers, and dictionary spellings apply to the English result. Show original keeps the Spanish transcript. The note stores that source language. With no cleanup key, the field keeps the Spanish words and shows Not translated. It is not presented as an English translation.
+
+### Location on company phones
+
+Office opens `/map` for each technician's last position, today's trail, job pins, and an en-route ETA. The map is Leaflet on OpenStreetMap tiles, so it does not need a paid key. Phones post batches to `POST /api/v1/locations` with a device token (`adeldev_…`), which is separate from a user API token. Tracking runs only during the hours in Settings, only after the technician acknowledges the written notice, and there is no covert mode. The web app reports only while the screen is in use. `companion/` is the later always-on path for a managed company phone. It is not submitted to an app store.
+
+Arrival inside 150 meters can set the visit to on site. Leaving records a departure and does not complete the visit. If notes or photos are still missing, the technician gets one in-app reminder after a short grace (default 2 minutes). Re-entering the site during that wait cancels it. The reminder is on by default. Details, MDM, and battery notes are in [docs/company-phone-location.md](docs/company-phone-location.md).
+
+**Company policy point for counsel review. This is not legal advice.**
 
 ## Assumptions (v1)
 
