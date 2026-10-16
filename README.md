@@ -100,6 +100,16 @@ The process speaks MCP on stdin/stdout. Point an MCP client at `pnpm mcp` from t
 
 On a phone, open `/tech` in the browser and use Add to Home Screen. `manifest.webmanifest` and `sw.js` make that installable. It is a web app, not a native store build.
 
+### Voice on the phone
+
+Free-text fields on a visit (notes, checklist notes, time notes, photo captions, and the signature name) keep a typed box and add Dictate. The browser speech API is used, with a phrase grammar when the engine accepts one. Safari without grammars still records.
+
+After the engine returns words, the phone posts them to `POST /api/v1/speech/cleanup`. The server fuzzy-corrects the dictionary (Settings → Speech dictionary, plus customer names from the database). Short terms of four letters or fewer, such as DMX or 2N, match only when the letters are the same. Longer terms allow a small edit distance. Numbers change only when the dictionary term itself contains those same digits.
+
+If `SPEECH_CLEANUP_API_KEY` is missing, still a placeholder that contains `replace`, or `SPEECH_CLEANUP=off`, cleanup stops there. The field shows the dictionary-corrected text. The stored original is the speech-engine transcript, so Show original still works. With a real key, a model rewrite runs after the dictionary pass. The prompt tells the model not to invent facts and not to change numbers, part numbers, or measurements. If that call fails, the dictionary-corrected text is used.
+
+A technician can suggest a spelling from the visit. It stays out of dictation until office or admin accepts it. Office and admin can add, edit, and remove terms in settings, the REST API, and the MCP tools `list_terms`, `create_term`, `update_term`, `delete_term`, and `suggest_term`.
+
 ## Assumptions (v1)
 
 - Adel Electric and HED are brands on one company, not two tenants.

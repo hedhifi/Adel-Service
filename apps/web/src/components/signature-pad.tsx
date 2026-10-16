@@ -1,9 +1,10 @@
 "use client";
 
-import { buttonClass, ghostClass, inputClass } from "@/components/ui";
+import { VoiceField } from "@/components/voice-field";
+import { buttonClass, ghostClass } from "@/components/ui";
 import { useRef } from "react";
 
-export function SignaturePad() {
+export function SignaturePad({ phrases }: { phrases: string[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hiddenRef = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
@@ -51,10 +52,7 @@ export function SignaturePad() {
 
   return (
     <div className="space-y-3">
-      <label className="block space-y-1 text-sm">
-        <span className="font-semibold">Signed by</span>
-        <input className={inputClass} name="signedByName" required placeholder="Customer name" />
-      </label>
+      <VoiceField name="signedByName" rawName="signedByRaw" phrases={phrases} required placeholder="Customer name" label="Signed by" />
       <canvas
         ref={canvasRef}
         width={640}

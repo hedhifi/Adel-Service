@@ -38,6 +38,7 @@ const {
   timeEntries,
   users,
   visitForms,
+  speechTerms,
   visitNotes,
   visits,
 } = schema;
@@ -542,6 +543,35 @@ await db.insert(apiTokens).values({
   userId: alan.id,
   createdById: alan.id,
 });
+
+await db.insert(speechTerms).values(
+  [
+    "Crestron",
+    "Lutron",
+    "Casambi",
+    "Sonos",
+    "UniFi",
+    "2N",
+    "Control4",
+    "Savant",
+    "DMX",
+    "PoE",
+    "GFCI",
+    "AFCI",
+    "Cat6",
+    "HDMI",
+    "keypad",
+    "touch panel",
+    "shade motor",
+    "rack",
+    "interlock",
+    "EV charger",
+    "load calculation",
+    "panel schedule",
+    "low voltage",
+    "dimmer",
+  ].map((phrase) => ({ phrase, status: "active" as const, createdById: alan.id })),
+);
 
 await db.update(requests).set({ updatedAt: new Date() }).where(eq(requests.id, panelRequest.id));
 

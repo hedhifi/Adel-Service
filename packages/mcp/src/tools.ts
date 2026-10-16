@@ -37,6 +37,11 @@ export const TOOL_NAMES = [
   "create_invoice",
   "issue_invoice",
   "record_payment",
+  "list_terms",
+  "create_term",
+  "update_term",
+  "delete_term",
+  "suggest_term",
 ] as const;
 
 export function registerTools(server: McpServer) {
@@ -222,5 +227,45 @@ export function registerTools(server: McpServer) {
       },
     },
     async ({ invoiceId, ...rest }) => call("POST", `/api/v1/invoices/${invoiceId}/payments`, rest),
+  );
+  server.registerTool(
+    "list_terms",
+    {
+      description: "List speech dictionary terms. Technicians see active terms. Office can filter status to suggested.",
+      inputSchema: { status: z.enum(["active", "suggested"]).optional() },
+    },
+    async ({ status }) => call("GET", `/api/v1/terms${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  );
+  server.registerTool(
+    "create_term",
+    {
+      description: "Add an active dictionary spelling. Office and admin only.",
+      inputSchema: { phrase: z.string() },
+    },
+    async (input) => call("POST", "/api/v1/terms", input),
+  );
+  server.registerTool(
+    "update_term",
+    {
+      description: "Edit a dictionary term or accept a suggestion by setting status to active. Office and admin only.",
+      inputSchema: { termId: z.string().uuid(), phrase: z.string().optional(), status: z.enum(["active", "suggested"]).optional() },
+    },
+    async ({ termId, ...rest }) => call("PATCH", `/api/v1/terms/${termId}`, rest),
+  );
+  server.registerTool(
+    "delete_term",
+    {
+      description: "Remove a dictionary term. Office and admin only.",
+      inputSchema: { termId: z.string().uuid() },
+    },
+    async ({ termId }) => call("DELETE", `/api/v1/terms/${termId}`),
+  );
+  server.registerTool(
+    "suggest_term",
+    {
+      description: "Suggest a spelling. It does not affect dictation until office or admin accepts it.",
+      inputSchema: { phrase: z.string() },
+    },
+    async (input) => call("POST", "/api/v1/terms/suggestions", input),
   );
 }

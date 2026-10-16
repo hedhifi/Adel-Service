@@ -1,6 +1,5 @@
-import { actorFromRequest, handle, readJson, search } from "@/lib/http";
-import { addVisitPhoto } from "@adel/core";
-import { AppError } from "@adel/core";
+import { actorFromRequest, handle } from "@/lib/http";
+import { AppError, addVisitPhoto } from "@adel/core";
 
 
 export const POST = handle(async (req, { params }) => {
@@ -12,6 +11,7 @@ export const POST = handle(async (req, { params }) => {
     bytes: Buffer.from(await file.arrayBuffer()),
     contentType: file.type,
     caption: String(form.get("caption") ?? ""),
+    rawCaption: String(form.get("rawCaption") ?? ""),
   });
   return Response.json(result, { status: 201 });
 });

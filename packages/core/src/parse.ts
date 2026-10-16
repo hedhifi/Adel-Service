@@ -16,7 +16,12 @@ export function parse<S extends z.ZodTypeAny>(schema: S, data: unknown): z.outpu
 }
 
 export function isUniqueViolation(err: unknown) {
-  return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23505";
+  let current: unknown = err;
+  for (let depth = 0; depth < 5 && current && typeof current === "object"; depth++) {
+    if ("code" in current && (current as { code?: string }).code === "23505") return true;
+    current = "cause" in current ? (current as { cause?: unknown }).cause : undefined;
+  }
+  return false;
 }
 
 export const pageSchema = z.object({

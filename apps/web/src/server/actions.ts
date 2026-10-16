@@ -38,6 +38,10 @@ import {
   updateRequest,
   updateVisit,
   voidInvoice,
+  createSpeechTerm,
+  deleteSpeechTerm,
+  suggestSpeechTerm,
+  updateSpeechTerm,
 } from "@adel/core";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -343,7 +347,7 @@ export async function noteAction(formData: FormData) {
   const actor = await requireUser();
   const id = text(formData, "id");
   try {
-    await addVisitNote(actor, id, { body: text(formData, "body") });
+    await addVisitNote(actor, id, { body: text(formData, "body"), rawBody: text(formData, "rawBody") || null });
     redirect(`/tech/visits/${id}#notes`);
   } catch (err) {
     if (isRedirect(err)) throw err;
@@ -361,6 +365,7 @@ export async function photoAction(formData: FormData) {
       bytes: Buffer.from(await file.arrayBuffer()),
       contentType: file.type,
       caption: text(formData, "caption"),
+      rawCaption: text(formData, "rawCaption") || null,
     });
     redirect(`/tech/visits/${id}#photos`);
   } catch (err) {
@@ -373,7 +378,11 @@ export async function signatureAction(formData: FormData) {
   const actor = await requireUser();
   const id = text(formData, "id");
   try {
-    await saveSignature(actor, id, { signedByName: text(formData, "signedByName"), signaturePng: String(formData.get("signaturePng") ?? "") });
+    await saveSignature(actor, id, {
+      signedByName: text(formData, "signedByName"),
+      signedByRaw: text(formData, "signedByRaw") || null,
+      signaturePng: String(formData.get("signaturePng") ?? ""),
+    });
     redirect(`/tech/visits/${id}?notice=Signature saved`);
   } catch (err) {
     if (isRedirect(err)) throw err;
@@ -385,7 +394,7 @@ export async function clockAction(formData: FormData) {
   const actor = await requireUser();
   const id = text(formData, "id");
   try {
-    await clockVisit(actor, id, { action: text(formData, "action") });
+    await clockVisit(actor, id, { action: text(formData, "action"), note: text(formData, "note") || undefined, rawNote: text(formData, "rawNote") || undefined });
     redirect(`/tech/visits/${id}#time`);
   } catch (err) {
     if (isRedirect(err)) throw err;
@@ -415,6 +424,7 @@ export async function saveFormAction(formData: FormData) {
       itemId: String(itemId),
       checked: checked.has(String(itemId)),
       note: String(formData.get(`note__${itemId}`) ?? ""),
+      rawNote: String(formData.get(`raw__${itemId}`) ?? ""),
     }));
     await saveVisitForm(actor, visitId, formId, { responses });
     redirect(`/tech/visits/${visitId}#forms`);
@@ -574,5 +584,55 @@ export async function updateSettingsAction(formData: FormData) {
   } catch (err) {
     if (isRedirect(err)) throw err;
     bail("/settings", err);
+  }
+}
+
+export async function createTermAction(formData: FormData) {
+  const actor = await requireOffice();
+  try {
+    await createSpeechTerm(actor, { phrase: text(formData, "phrase") });
+    redirect("/settings/terms?notice=Term added");
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail("/settings/terms", err);
+  }
+}
+
+export async function updateTermAction(formData: FormData) {
+  const actor = await requireOffice();
+  try {
+    const status = text(formData, "status");
+    await updateSpeechTerm(actor, text(formData, "id"), {
+      phrase: text(formData, "phrase") || undefined,
+      status: status === "active" || status === "suggested" ? status : undefined,
+    });
+    redirect("/settings/terms?notice=Term updated");
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail("/settings/terms", err);
+  }
+}
+
+export async function deleteTermAction(formData: FormData) {
+  const actor = await requireOffice();
+  try {
+    await deleteSpeechTerm(actor, text(formData, "id"));
+    redirect("/settings/terms?notice=Term removed");
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail("/settings/terms", err);
+  }
+}
+
+export async function suggestTermAction(formData: FormData) {
+  const actor = await requireUser();
+  const visitId = text(formData, "visitId");
+  const back = visitId ? `/tech/visits/${visitId}` : "/settings/terms";
+  try {
+    await suggestSpeechTerm(actor, { phrase: text(formData, "phrase") });
+    redirect(`${back}?notice=${encodeURIComponent("Spelling sent to the office")}`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(back, err);
   }
 }

@@ -1,5 +1,7 @@
 import { CardPayment } from "@/components/card-payment";
+import { DictatedText } from "@/components/dictated-text";
 import { SignaturePad } from "@/components/signature-pad";
+import { VoiceField } from "@/components/voice-field";
 import { Flash, StatusPill, buttonClass, ghostClass, inputClass } from "@/components/ui";
 import { address, money, when } from "@/lib/format";
 import {
@@ -9,10 +11,11 @@ import {
   photoAction,
   saveFormAction,
   signatureAction,
+  suggestTermAction,
   visitStatusAction,
 } from "@/server/actions";
 import { requireUser } from "@/server/session";
-import { AppError, getCompanySettings, getVisit, listFormTemplates, stripePublishableKey } from "@adel/core";
+import { AppError, activeSpeechPhrases, getCompanySettings, getVisit, listFormTemplates, stripePublishableKey } from "@adel/core";
 
 export default async function VisitPage({
   params,
@@ -24,7 +27,12 @@ export default async function VisitPage({
   const actor = await requireUser();
   const { id } = await params;
   const query = await searchParams;
-  const [{ data }, settings, forms] = await Promise.all([getVisit(actor, id), getCompanySettings(), listFormTemplates(actor)]);
+  const [{ data }, settings, forms, phrases] = await Promise.all([
+    getVisit(actor, id),
+    getCompanySettings(),
+    listFormTemplates(actor),
+    activeSpeechPhrases(),
+  ]);
   let publishable: string | null = null;
   try {
     publishable = stripePublishableKey();
@@ -69,12 +77,18 @@ export default async function VisitPage({
           {data.timeEntries.map((entry) => (
             <li key={entry.id}>
               {when(entry.startedAt, settings.timeZone)} – {entry.endedAt ? when(entry.endedAt, settings.timeZone) : "clocked in"}
+              {entry.note ? (
+                <div className="mt-1">
+                  <DictatedText text={entry.note} raw={entry.rawNote} />
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
-        <form action={clockAction}>
+        <form action={clockAction} className="space-y-2">
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="action" value={openClock ? "out" : "in"} />
+          <VoiceField name="note" rawName="rawNote" phrases={phrases} multiline rows={2} placeholder="What was the time for?" label="Time note" />
           <button className={buttonClass} type="submit">
             {openClock ? "Clock out" : "Clock in"}
           </button>
@@ -85,7 +99,7 @@ export default async function VisitPage({
         <ul className="space-y-2 text-sm">
           {data.notes.map((note) => (
             <li key={note.id} className="rounded-md border border-line bg-card px-3 py-2">
-              <p>{note.body}</p>
+              <DictatedText text={note.body} raw={note.rawBody} />
               <p className="text-xs text-muted">
                 {note.authorName} · {when(note.createdAt, settings.timeZone)}
               </p>
@@ -94,7 +108,7 @@ export default async function VisitPage({
         </ul>
         <form action={noteAction} className="space-y-2">
           <input type="hidden" name="id" value={id} />
-          <textarea className={inputClass} name="body" rows={3} required placeholder="What did you find?" />
+          <VoiceField name="body" rawName="rawBody" phrases={phrases} multiline required placeholder="What did you find?" label="Note" />
           <button className={ghostClass} type="submit">
             Add note
           </button>
@@ -107,14 +121,18 @@ export default async function VisitPage({
             <figure key={photo.id}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img className="h-32 w-full rounded-md object-cover" src={`/api/v1/visits/${id}/photos/${photo.id}`} alt={photo.caption ?? "Visit photo"} />
-              {photo.caption ? <figcaption className="text-xs text-muted">{photo.caption}</figcaption> : null}
+              {photo.caption ? (
+                <figcaption className="text-xs text-muted">
+                  <DictatedText text={photo.caption} raw={photo.rawCaption} />
+                </figcaption>
+              ) : null}
             </figure>
           ))}
         </div>
         <form action={photoAction} className="space-y-2">
           <input type="hidden" name="id" value={id} />
           <input className={inputClass} name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
-          <input className={inputClass} name="caption" placeholder="Caption" />
+          <VoiceField name="caption" rawName="rawCaption" phrases={phrases} placeholder="Caption" label="Caption" />
           <button className={ghostClass} type="submit">
             Upload photo
           </button>
@@ -130,15 +148,25 @@ export default async function VisitPage({
             {form.items.map((item) => {
               const response = form.responses.find((entry) => entry.itemId === item.id);
               return (
-                <label key={item.id} className="block text-sm">
+                <div key={item.id} className="block text-sm">
                   <input type="hidden" name="itemId" value={item.id} />
-                  <span className="flex items-center gap-2">
+                  <label className="flex items-center gap-2">
                     <input type="checkbox" name="item" value={item.id} defaultChecked={response?.checked} />
                     {item.label}
                     {item.required ? " *" : ""}
-                  </span>
-                  <input className={`${inputClass} mt-1`} name={`note__${item.id}`} defaultValue={response?.note ?? ""} placeholder="Note" />
-                </label>
+                  </label>
+                  <div className="mt-1">
+                    <VoiceField
+                      name={`note__${item.id}`}
+                      rawName={`raw__${item.id}`}
+                      phrases={phrases}
+                      placeholder="Note"
+                      defaultValue={response?.note ?? ""}
+                      defaultRaw={response?.rawNote ?? ""}
+                      label="Checklist note"
+                    />
+                  </div>
+                </div>
               );
             })}
             <button className={ghostClass} type="submit">
@@ -164,7 +192,9 @@ export default async function VisitPage({
         <h2 className="font-serif text-xl">Signature</h2>
         {data.hasSignature ? (
           <div>
-            <p className="text-sm">Signed by {data.signedByName}</p>
+            <div className="text-sm">
+              Signed by <DictatedText text={data.signedByName ?? ""} raw={data.signedByRaw} />
+            </div>
             {data.signaturePng ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={data.signaturePng} alt={`Signature of ${data.signedByName}`} className="mt-2 h-24 rounded-md border border-line bg-white" />
@@ -174,9 +204,20 @@ export default async function VisitPage({
         {data.status !== "completed" && data.status !== "canceled" ? (
           <form action={signatureAction}>
             <input type="hidden" name="id" value={id} />
-            <SignaturePad />
+            <SignaturePad phrases={phrases} />
           </form>
         ) : null}
+      </section>
+      <section className="space-y-2">
+        <h2 className="font-serif text-xl">Suggest a spelling</h2>
+        <p className="text-xs text-muted">Office reviews it before dictation starts using it.</p>
+        <form action={suggestTermAction} className="flex gap-2">
+          <input type="hidden" name="visitId" value={id} />
+          <input className={inputClass} name="phrase" required maxLength={80} placeholder="Brand or part name" />
+          <button className={ghostClass} type="submit">
+            Suggest
+          </button>
+        </form>
       </section>
       {data.invoice && (data.invoice.status === "issued" || data.invoice.status === "partial") && data.invoice.balanceCents > 0 ? (
         <section className="rounded-lg border border-line bg-card p-4">

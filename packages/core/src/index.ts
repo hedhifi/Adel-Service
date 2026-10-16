@@ -84,3 +84,20 @@ export {
   voidInvoice,
 } from "./billing";
 export { getDashboard } from "./dashboard";
+export {
+  activeSpeechPhrases,
+  buildSpeechGrammar,
+  cleanupConfigured,
+  cleanupInstructions,
+  createSpeechTerm,
+  deleteSpeechTerm,
+  finishDictation,
+  fuzzyCorrect,
+  listSpeechTerms,
+  prepareDictation,
+  recognitionErrorKind,
+  suggestSpeechTerm,
+  updateSpeechTerm,
+  voiceAvailability,
+  voiceStatusMessage,
+} from "./speech";

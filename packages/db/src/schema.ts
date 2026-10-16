@@ -21,6 +21,7 @@ export const paymentStatus = pgEnum("payment_status", ["processing", "succeeded"
 export const paymentMethod = pgEnum("payment_method", ["card", "check", "cash", "other"]);
 export const lineKind = pgEnum("line_kind", ["labor", "material", "other"]);
 export const webhookDeliveryStatus = pgEnum("webhook_delivery_status", ["pending", "delivered", "failed"]);
+export const speechTermStatus = pgEnum("speech_term_status", ["active", "suggested"]);
 
 export type Role = (typeof userRole.enumValues)[number];
 export type RequestStatus = (typeof requestStatus.enumValues)[number];
@@ -32,7 +33,7 @@ export type PaymentMethod = (typeof paymentMethod.enumValues)[number];
 export type LineKind = (typeof lineKind.enumValues)[number];
 
 export type FormItem = { id: string; label: string; required: boolean };
-export type FormResponse = { itemId: string; checked: boolean; note: string };
+export type FormResponse = { itemId: string; checked: boolean; note: string; rawNote?: string };
 
 /**
  * Adel Electric, LLC is one company. Adel Electric and HED are brands (divisions)
@@ -227,6 +228,7 @@ export const visits = pgTable(
     internalNotes: text("internal_notes"),
     signaturePng: text("signature_png"),
     signedByName: text("signed_by_name"),
+    signedByRaw: text("signed_by_raw"),
     signedAt: timestamp("signed_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -244,6 +246,7 @@ export const visitNotes = pgTable("visit_notes", {
     .notNull()
     .references(() => users.id),
   body: text("body").notNull(),
+  rawBody: text("raw_body"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -258,6 +261,7 @@ export const visitPhotos = pgTable("visit_photos", {
   storageKey: text("storage_key").notNull(),
   contentType: text("content_type").notNull(),
   caption: text("caption"),
+  rawCaption: text("raw_caption"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -292,6 +296,7 @@ export const timeEntries = pgTable("time_entries", {
   startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
   note: text("note"),
+  rawNote: text("raw_note"),
 });
 
 export const invoices = pgTable(
@@ -393,6 +398,19 @@ export const webhookDeliveries = pgTable(
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   },
   (table) => [index("webhook_deliveries_status_idx").on(table.status)],
+);
+
+export const speechTerms = pgTable(
+  "speech_terms",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    phrase: text("phrase").notNull(),
+    status: speechTermStatus("status").notNull().default("active"),
+    createdById: uuid("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("speech_terms_status_idx").on(table.status)],
 );
 
 export const counters = pgTable("counters", {

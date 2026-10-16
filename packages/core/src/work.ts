@@ -383,6 +383,7 @@ export async function getVisit(actor: Actor, id: string) {
     .select({
       id: visitNotes.id,
       body: visitNotes.body,
+      rawBody: visitNotes.rawBody,
       createdAt: visitNotes.createdAt,
       authorName: users.name,
     })
@@ -394,6 +395,7 @@ export async function getVisit(actor: Actor, id: string) {
     .select({
       id: visitPhotos.id,
       caption: visitPhotos.caption,
+      rawCaption: visitPhotos.rawCaption,
       contentType: visitPhotos.contentType,
       createdAt: visitPhotos.createdAt,
     })
@@ -414,6 +416,7 @@ export async function getVisit(actor: Actor, id: string) {
       technicianId: visit.technicianId,
       technicianName: tech?.name ?? null,
       signedByName: visit.signedByName,
+      signedByRaw: visit.signedByRaw,
       signedAt: visit.signedAt,
       hasSignature: Boolean(visit.signaturePng),
       signaturePng: visit.signaturePng,
@@ -479,10 +482,16 @@ export async function updateVisit(actor: Actor, id: string, input: unknown) {
 
 export async function addVisitNote(actor: Actor, visitId: string, input: unknown) {
   await requireVisit(actor, visitId);
-  const data = parse(z.object({ body: z.string().trim().min(1).max(5000) }), input);
+  const data = parse(
+    z.object({
+      body: z.string().trim().min(1).max(5000),
+      rawBody: z.string().trim().max(5000).optional().nullable(),
+    }),
+    input,
+  );
   const [note] = await db
     .insert(visitNotes)
-    .values({ visitId, authorId: actor.id, body: data.body })
+    .values({ visitId, authorId: actor.id, body: data.body, rawBody: data.rawBody || null })
     .returning();
   return { data: note };
 }
@@ -490,7 +499,7 @@ export async function addVisitNote(actor: Actor, visitId: string, input: unknown
 export async function addVisitPhoto(
   actor: Actor,
   visitId: string,
-  file: { bytes: Buffer; contentType: string; caption?: string | null },
+  file: { bytes: Buffer; contentType: string; caption?: string | null; rawCaption?: string | null },
 ) {
   await requireVisit(actor, visitId);
   const extension = PHOTO_TYPES[file.contentType];
@@ -512,10 +521,11 @@ export async function addVisitPhoto(
       storageKey,
       contentType: file.contentType,
       caption: file.caption?.slice(0, 200) ?? null,
+      rawCaption: file.rawCaption?.slice(0, 5000) || null,
     })
     .returning();
   return {
-    data: { id: photo.id, caption: photo.caption, contentType: photo.contentType, createdAt: photo.createdAt },
+    data: { id: photo.id, caption: photo.caption, rawCaption: photo.rawCaption, contentType: photo.contentType, createdAt: photo.createdAt },
   };
 }
 
@@ -538,6 +548,7 @@ export async function saveSignature(actor: Actor, visitId: string, input: unknow
   const data = parse(
     z.object({
       signedByName: z.string().trim().min(1).max(160),
+      signedByRaw: z.string().trim().max(160).optional().nullable(),
       signaturePng: z.string().min(30).max(500_000),
     }),
     input,
@@ -550,6 +561,7 @@ export async function saveSignature(actor: Actor, visitId: string, input: unknow
     .set({
       signaturePng: data.signaturePng,
       signedByName: data.signedByName,
+      signedByRaw: data.signedByRaw || null,
       signedAt: new Date(),
       updatedAt: new Date(),
     })
@@ -598,6 +610,7 @@ export async function saveVisitForm(actor: Actor, visitId: string, formId: strin
           itemId: z.string(),
           checked: z.boolean(),
           note: z.string().max(500).optional(),
+          rawNote: z.string().max(5000).optional(),
         }),
       ),
     }),
@@ -607,7 +620,12 @@ export async function saveVisitForm(actor: Actor, visitId: string, formId: strin
   if (!form) throw notFound("Form not found.");
   const responses = form.items.map((item) => {
     const incoming = data.responses.find((response) => response.itemId === item.id);
-    return { itemId: item.id, checked: Boolean(incoming?.checked), note: incoming?.note?.trim() ?? "" };
+    return {
+      itemId: item.id,
+      checked: Boolean(incoming?.checked),
+      note: incoming?.note?.trim() ?? "",
+      rawNote: incoming?.rawNote?.trim() || undefined,
+    };
   });
   const [saved] = await db
     .update(visitForms)
@@ -622,7 +640,14 @@ export async function clockVisit(actor: Actor, visitId: string, input: unknown) 
   if (visit.status === "completed" || visit.status === "canceled") {
     throw new AppError(409, "This visit is already closed.", "invalid_state");
   }
-  const data = parse(z.object({ action: z.enum(["in", "out"]), note: z.string().trim().max(300).optional() }), input);
+  const data = parse(
+    z.object({
+      action: z.enum(["in", "out"]),
+      note: z.string().trim().max(300).optional(),
+      rawNote: z.string().trim().max(5000).optional(),
+    }),
+    input,
+  );
   if (data.action === "in") {
     const [open] = await db
       .select()
@@ -633,7 +658,8 @@ export async function clockVisit(actor: Actor, visitId: string, input: unknown) 
       visitId,
       userId: actor.id,
       startedAt: new Date(),
-      note: data.note ?? null,
+      note: data.note || null,
+      rawNote: data.rawNote || null,
     });
     if (visit.status === "scheduled" || visit.status === "en_route") {
       await db.transaction(async (tx) => {
@@ -647,7 +673,7 @@ export async function clockVisit(actor: Actor, visitId: string, input: unknown) 
       .from(timeEntries)
       .where(and(eq(timeEntries.visitId, visitId), eq(timeEntries.userId, actor.id), isNull(timeEntries.endedAt)));
     if (!open) throw new AppError(409, "You're not clocked in on this visit.", "not_clocked_in");
-    await db.update(timeEntries).set({ endedAt: new Date() }).where(eq(timeEntries.id, open.id));
+    await db.update(timeEntries).set({ endedAt: new Date(), note: data.note || open.note, rawNote: data.rawNote || open.rawNote }).where(eq(timeEntries.id, open.id));
   }
   return getVisit(actor, visitId);
 }

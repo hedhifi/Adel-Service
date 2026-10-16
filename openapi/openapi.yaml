@@ -988,6 +988,107 @@ paths:
       responses:
         "200":
           description: Updated
+  /api/v1/speech/cleanup:
+    post:
+      tags: [Speech]
+      summary: Clean a dictated transcript
+      description: |
+        Fuzzy-corrects dictionary spellings, then optionally rewrites filler through a configured model.
+        With no API key, or when SPEECH_CLEANUP=off, the response is the dictionary-corrected transcript (mode passthrough).
+        The raw speech-engine transcript is returned separately so the field can show the original.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transcript]
+              properties:
+                transcript:
+                  type: string
+      responses:
+        "200":
+          description: Cleaned text and the original transcript
+  /api/v1/terms:
+    get:
+      tags: [Speech]
+      summary: List dictionary terms
+      description: Technicians see active terms. Office and admin can list suggested terms too.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, suggested]
+      responses:
+        "200":
+          description: Terms
+    post:
+      tags: [Speech]
+      summary: Add an active dictionary term
+      description: Office and admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phrase]
+              properties:
+                phrase:
+                  type: string
+      responses:
+        "201":
+          description: Created
+  /api/v1/terms/{id}:
+    patch:
+      tags: [Speech]
+      summary: Edit a term or accept a suggestion
+      description: Office and admin only. Set status to active to accept a technician suggestion.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phrase:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, suggested]
+      responses:
+        "200":
+          description: Updated
+    delete:
+      tags: [Speech]
+      summary: Remove a dictionary term
+      description: Office and admin only.
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Removed
+  /api/v1/terms/suggestions:
+    post:
+      tags: [Speech]
+      summary: Suggest a spelling
+      description: Any signed-in user. Suggestions stay out of dictation until office or admin marks them active.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phrase]
+              properties:
+                phrase:
+                  type: string
+      responses:
+        "201":
+          description: Suggested
 components:
   securitySchemes:
     cookieAuth:
