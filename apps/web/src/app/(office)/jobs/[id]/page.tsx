@@ -1,10 +1,11 @@
+import { PhotoCapture } from "@/components/photo-capture";
 import { Flash, PageHeader, StatusPill, TextLink, buttonClass, ghostClass, inputClass } from "@/components/ui";
 import { LineItemsEditor } from "@/components/line-items-editor";
 import { address, jobNo, when } from "@/lib/format";
 import { createInvoiceAction, scheduleVisitAction, updateJobAction } from "@/server/actions";
 import { requireOffice } from "@/server/session";
 import { companyToday } from "@adel/db/zoned";
-import { getCompanySettings, getJob, listFormTemplates, listUsers } from "@adel/core";
+import { activeSpeechPhrases, getCompanySettings, getDictationLanguage, getJob, listFormTemplates, listUsers } from "@adel/core";
 
 export default async function JobPage({
   params,
@@ -16,11 +17,13 @@ export default async function JobPage({
   const actor = await requireOffice();
   const { id } = await params;
   const query = await searchParams;
-  const [{ data }, settings, people, forms] = await Promise.all([
+  const [{ data }, settings, people, forms, phrases, dictationLanguage] = await Promise.all([
     getJob(actor, id),
     getCompanySettings(),
     listUsers(actor),
     listFormTemplates(actor),
+    activeSpeechPhrases(),
+    getDictationLanguage(actor.id),
   ]);
   const techs = people.data.filter((person) => person.role === "tech" && person.active);
   const today = companyToday(settings.timeZone);
@@ -41,11 +44,14 @@ export default async function JobPage({
         <h2 className="mb-2 font-serif text-2xl">Visits</h2>
         <ul className="mb-3 space-y-2 text-sm">
           {data.visits.map((visit) => (
-            <li key={visit.id} className="flex flex-wrap items-center justify-between gap-2">
-              <TextLink href={`/tech/visits/${visit.id}`}>
-                {when(visit.scheduledStart, settings.timeZone)} · {visit.technicianName ?? "Unassigned"}
-              </TextLink>
-              <StatusPill status={visit.status} />
+            <li key={visit.id} className="space-y-2 rounded-lg border border-line bg-card p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <TextLink href={`/tech/visits/${visit.id}`}>
+                  {when(visit.scheduledStart, settings.timeZone)} · {visit.technicianName ?? "Unassigned"}
+                </TextLink>
+                <StatusPill status={visit.status} />
+              </div>
+              <PhotoCapture visitId={visit.id} phrases={phrases} defaultLanguage={dictationLanguage} />
             </li>
           ))}
         </ul>

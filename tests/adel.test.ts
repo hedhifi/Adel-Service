@@ -44,6 +44,7 @@ import { PASSWORD, seedCompany } from "./helpers";
 import "./speech.test";
 import "./location.test";
 import "./entity.test";
+import "./photo-capture.test";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PNG = Buffer.from(

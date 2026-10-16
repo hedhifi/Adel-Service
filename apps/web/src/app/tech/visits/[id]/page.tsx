@@ -1,5 +1,6 @@
 import { CardPayment } from "@/components/card-payment";
 import { DictatedText } from "@/components/dictated-text";
+import { PhotoCapture } from "@/components/photo-capture";
 import { SignaturePad } from "@/components/signature-pad";
 import { VoiceField } from "@/components/voice-field";
 import { Flash, StatusPill, buttonClass, ghostClass, inputClass } from "@/components/ui";
@@ -8,7 +9,6 @@ import {
   addFormAction,
   clockAction,
   noteAction,
-  photoAction,
   saveFormAction,
   signatureAction,
   suggestTermAction,
@@ -130,14 +130,7 @@ export default async function VisitPage({
             </figure>
           ))}
         </div>
-        <form action={photoAction} className="space-y-2">
-          <input type="hidden" name="id" value={id} />
-          <input className={inputClass} name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
-          <VoiceField name="caption" rawName="rawCaption" phrases={phrases} defaultLanguage={dictationLanguage} languageName="captionLanguage" placeholder="Caption" label="Caption" />
-          <button className={ghostClass} type="submit">
-            Upload photo
-          </button>
-        </form>
+        <PhotoCapture visitId={id} phrases={phrases} defaultLanguage={dictationLanguage} />
       </section>
       <section id="forms" className="space-y-3">
         <h2 className="font-serif text-xl">Forms</h2>
