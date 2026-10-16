@@ -41,6 +41,9 @@
     },
     {
       "name": "Location"
+    },
+    {
+      "name": "Entities"
     }
   ],
   "security": [
@@ -2185,6 +2188,98 @@
         "responses": {
           "200": {
             "description": "Notifications"
+          }
+        }
+      }
+    },
+    "/api/v1/contracts": {
+      "get": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "List contracts for the active company",
+        "responses": {
+          "200": {
+            "description": "Contracts"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Create a contract in the active company",
+        "description": "Customer, property, start, end, status, and notes. No recurring visits or billing.",
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/entities": {
+      "patch": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Rename the active company",
+        "description": "Admin only. Changes the name shown in the switcher.",
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/entities/export": {
+      "get": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Export the active company's books",
+        "description": "Customers, jobs, invoices, payments, contracts, and link-layer endpoints for this company only.",
+        "responses": {
+          "200": {
+            "description": "Extract"
+          }
+        }
+      }
+    },
+    "/api/v1/entities/links": {
+      "get": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "List link-layer rows that touch the active company",
+        "responses": {
+          "200": {
+            "description": "Links"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Link a customer in the active company to a customer in another company",
+        "description": "Record ids are stored without a foreign key. This is the only cross-company reference.",
+        "responses": {
+          "201": {
+            "description": "Link"
+          }
+        }
+      }
+    },
+    "/api/v1/entities/switch": {
+      "post": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Switch the session's active company",
+        "description": "API tokens cannot switch. Writes after this call land in the selected company.",
+        "responses": {
+          "200": {
+            "description": "Active company"
           }
         }
       }

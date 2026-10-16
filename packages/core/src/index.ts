@@ -1,5 +1,7 @@
+export { createContract, exportEntity, linkCustomers, listContracts, listEntityLinks, renameEntity } from "./entities";
+export { switchEntity } from "./auth";
 export { AppError } from "./errors";
-export type { Actor } from "./permissions";
+export type { Actor, Membership } from "./permissions";
 export { assertAdmin, assertOffice, assertRole } from "./permissions";
 export {
   authenticateBearer,
@@ -14,7 +16,7 @@ export {
   revokeApiToken,
   setUserActive,
 } from "./auth";
-export { getCompanySettings, listBrands, updateCompanySettings } from "./settings";
+export { getCompanySettings, getEntity, listBrands, updateCompanySettings } from "./settings";
 export {
   WEBHOOK_EVENTS,
   createWebhookEndpoint,

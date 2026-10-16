@@ -1,6 +1,6 @@
 import { companyToday } from "@adel/db/zoned";
 import { customers, db, invoices, quotes, requests } from "@adel/db";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { assertOffice, type Actor } from "./permissions";
 import { getCompanySettings } from "./settings";
 import { listVisits } from "./work";
@@ -19,7 +19,7 @@ export async function getDashboard(actor: Actor) {
     })
     .from(requests)
     .innerJoin(customers, eq(customers.id, requests.customerId))
-    .where(inArray(requests.status, ["new", "reviewing"]))
+    .where(and(eq(requests.entityId, actor.entityId), inArray(requests.status, ["new", "reviewing"])))
     .orderBy(desc(requests.createdAt))
     .limit(6);
   const sentQuotes = await db
@@ -32,7 +32,7 @@ export async function getDashboard(actor: Actor) {
     })
     .from(quotes)
     .innerJoin(customers, eq(customers.id, quotes.customerId))
-    .where(eq(quotes.status, "sent"))
+    .where(and(eq(quotes.entityId, actor.entityId), eq(quotes.status, "sent")))
     .orderBy(desc(quotes.sentAt))
     .limit(6);
   const openInvoices = await db
@@ -44,19 +44,22 @@ export async function getDashboard(actor: Actor) {
     })
     .from(invoices)
     .innerJoin(customers, eq(customers.id, invoices.customerId))
-    .where(inArray(invoices.status, ["issued", "partial"]))
+    .where(and(eq(invoices.entityId, actor.entityId), inArray(invoices.status, ["issued", "partial"])))
     .orderBy(desc(invoices.issuedAt))
     .limit(6);
   const today = await listVisits(actor, { day, limit: 50 });
   const [requestCount] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(requests)
-    .where(eq(requests.status, "new"));
-  const [quoteCount] = await db.select({ total: sql<number>`count(*)::int` }).from(quotes).where(eq(quotes.status, "sent"));
+    .where(and(eq(requests.entityId, actor.entityId), eq(requests.status, "new")));
+  const [quoteCount] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(quotes)
+    .where(and(eq(quotes.entityId, actor.entityId), eq(quotes.status, "sent")));
   const [invoiceCount] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(invoices)
-    .where(inArray(invoices.status, ["issued", "partial"]));
+    .where(and(eq(invoices.entityId, actor.entityId), inArray(invoices.status, ["issued", "partial"])));
   return {
     data: {
       day,

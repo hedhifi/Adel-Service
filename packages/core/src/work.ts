@@ -7,6 +7,7 @@ import {
   brands,
   customers,
   db,
+  entities,
   formTemplates,
   invoiceLineItems,
   invoices,
@@ -22,12 +23,13 @@ import {
   type FormItem,
   type JobStatus,
 } from "@adel/db";
-import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { nextNumber, type Tx } from "./db";
 import { AppError, notFound } from "./errors";
 import { pageSchema, parse } from "./parse";
 import { assertOffice, type Actor } from "./permissions";
+import { assertActiveBook, assertVisible } from "./scope";
 import { assertProperty } from "./records";
 import { getCompanySettings } from "./settings";
 import { emitEvent, safeDeliver } from "./webhooks";
@@ -68,6 +70,7 @@ async function requireTech(tx: Tx, technicianId: string) {
 export async function requireVisit(actor: Actor, visitId: string) {
   const [visit] = await db.select().from(visits).where(eq(visits.id, visitId));
   if (!visit) throw notFound("Visit not found.");
+  assertVisible(actor, visit.entityId);
   if (actor.role === "tech" && visit.technicianId !== actor.id) {
     throw new AppError(403, "This visit is assigned to someone else.", "forbidden");
   }
@@ -101,14 +104,14 @@ export async function listJobs(
 ) {
   assertOffice(actor);
   const page = parse(pageSchema, { limit: query.limit ?? 50, offset: query.offset ?? 0 });
-  const filters = [];
+  const filters = [eq(jobs.entityId, actor.entityId)];
   if (query.status) {
     const status = parse(z.enum(["unscheduled", "scheduled", "in_progress", "completed", "canceled"]), query.status);
     filters.push(eq(jobs.status, status));
   }
   if (query.customerId) filters.push(eq(jobs.customerId, query.customerId));
   if (query.q?.trim()) filters.push(sql`${jobs.title} ILIKE ${"%" + query.q.trim().replace(/[%_]/g, "") + "%"}`);
-  const where = filters.length ? and(...filters) : undefined;
+  const where = and(...filters);
   const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(jobs).where(where);
   const rows = await db
     .select({
@@ -155,14 +158,18 @@ export async function getJob(actor: Actor, id: string) {
       accessNotes: properties.accessNotes,
       brandId: jobs.brandId,
       brandName: brands.name,
+      entityId: jobs.entityId,
+      entityName: entities.name,
       createdAt: jobs.createdAt,
     })
     .from(jobs)
     .innerJoin(customers, eq(customers.id, jobs.customerId))
     .innerJoin(properties, eq(properties.id, jobs.propertyId))
     .innerJoin(brands, eq(brands.id, jobs.brandId))
+    .innerJoin(entities, eq(entities.id, jobs.entityId))
     .where(eq(jobs.id, id));
   if (!job) throw notFound("Job not found.");
+  assertVisible(actor, job.entityId);
   const visitRows = await db
     .select({
       id: visits.id,
@@ -176,7 +183,7 @@ export async function getJob(actor: Actor, id: string) {
     .leftJoin(users, eq(users.id, visits.technicianId))
     .where(eq(visits.jobId, id))
     .orderBy(asc(visits.scheduledStart));
-  const invoice = await invoiceBrief(id);
+  const invoice = job.entityId === actor.entityId ? await invoiceBrief(id) : null;
   return { data: { ...job, visits: visitRows, invoice } };
 }
 
@@ -195,13 +202,16 @@ export async function createJob(actor: Actor, input: unknown) {
   const id = await db.transaction(async (tx) => {
     const [customer] = await tx.select().from(customers).where(eq(customers.id, data.customerId));
     if (!customer) throw notFound("Customer not found.");
-    await assertProperty(tx, data.customerId, data.propertyId);
-    const [brand] = await tx.select().from(brands).where(eq(brands.id, data.brandId));
+    assertActiveBook(actor, customer.entityId);
+    const property = await assertProperty(tx, data.customerId, data.propertyId);
+    assertActiveBook(actor, property.entityId);
+    const [brand] = await tx.select().from(brands).where(and(eq(brands.id, data.brandId), eq(brands.entityId, actor.entityId)));
     if (!brand) throw new AppError(400, "Unknown brand.", "unknown_brand");
-    const number = await nextNumber(tx, "job");
+    const number = await nextNumber(tx, actor.entityId, "job");
     const [job] = await tx
       .insert(jobs)
       .values({
+        entityId: actor.entityId,
         number,
         customerId: data.customerId,
         propertyId: data.propertyId,
@@ -228,6 +238,7 @@ export async function updateJob(actor: Actor, id: string, input: unknown) {
   );
   const [existing] = await db.select().from(jobs).where(eq(jobs.id, id));
   if (!existing) throw notFound("Job not found.");
+  assertActiveBook(actor, existing.entityId);
   await db
     .update(jobs)
     .set({
@@ -264,12 +275,14 @@ export async function scheduleVisit(actor: Actor, input: unknown) {
   const visitId = await db.transaction(async (tx) => {
     const [job] = await tx.select().from(jobs).where(eq(jobs.id, data.jobId));
     if (!job) throw notFound("Job not found.");
+    assertActiveBook(actor, job.entityId);
     if (job.status === "completed") throw new AppError(409, "This job is already complete.", "invalid_state");
     if (data.technicianId) await requireTech(tx, data.technicianId);
     const wasOpen = job.status === "unscheduled" || job.status === "canceled";
     const [visit] = await tx
       .insert(visits)
       .values({
+        entityId: job.entityId,
         jobId: job.id,
         technicianId: data.technicianId ?? null,
         scheduledStart: start,
@@ -290,7 +303,7 @@ export async function scheduleVisit(actor: Actor, input: unknown) {
     }
     const status = await recomputeJob(tx, job.id);
     if (wasOpen && (status === "scheduled" || status === "in_progress")) {
-      await emitEvent(tx, "job.scheduled", { jobId: job.id, number: job.number, visitId: visit.id });
+      await emitEvent(tx, "job.scheduled", { jobId: job.id, number: job.number, visitId: visit.id }, job.entityId);
     }
     return visit.id;
   });
@@ -300,14 +313,17 @@ export async function scheduleVisit(actor: Actor, input: unknown) {
 
 export async function listVisits(
   actor: Actor,
-  query: { day?: string; technicianId?: string; limit?: unknown; offset?: unknown } = {},
+  query: { day?: string; technicianId?: string; limit?: unknown; offset?: unknown; board?: boolean } = {},
 ) {
   const settings = await getCompanySettings();
   const day = query.day ?? companyToday(settings.timeZone);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new AppError(400, "Use a day like 2026-10-16.", "invalid_input");
   const page = parse(pageSchema, { limit: query.limit ?? 100, offset: query.offset ?? 0 });
   const technicianId = actor.role === "tech" ? actor.id : query.technicianId;
-  const filters = [sql`(${visits.scheduledStart} AT TIME ZONE ${settings.timeZone})::date = ${day}::date`];
+  const filters = [
+    sql`(${visits.scheduledStart} AT TIME ZONE ${settings.timeZone})::date = ${day}::date`,
+    query.board ? inArray(visits.entityId, actor.entityIds) : eq(visits.entityId, actor.entityId),
+  ];
   if (technicianId) filters.push(eq(visits.technicianId, technicianId));
   const where = and(...filters);
   const rows = await db
@@ -325,12 +341,15 @@ export async function listVisits(
       line1: properties.line1,
       city: properties.city,
       brandName: brands.name,
+      entityId: visits.entityId,
+      entityName: entities.name,
     })
     .from(visits)
     .innerJoin(jobs, eq(jobs.id, visits.jobId))
     .innerJoin(customers, eq(customers.id, jobs.customerId))
     .innerJoin(properties, eq(properties.id, jobs.propertyId))
     .innerJoin(brands, eq(brands.id, jobs.brandId))
+    .innerJoin(entities, eq(entities.id, visits.entityId))
     .leftJoin(users, eq(users.id, visits.technicianId))
     .where(where)
     .orderBy(asc(visits.scheduledStart))
@@ -348,7 +367,7 @@ export async function getSchedule(actor: Actor, day?: string) {
     .from(users)
     .where(and(eq(users.role, "tech"), eq(users.active, true)))
     .orderBy(users.name);
-  const board = await listVisits(actor, { day: date, limit: 200 });
+  const board = await listVisits(actor, { day: date, limit: 200, board: actor.auth === "session" });
   return { data: { day: date, timeZone: settings.timeZone, technicians: techs, visits: board.data } };
 }
 
@@ -581,7 +600,7 @@ export async function listFormTemplates(actor: Actor) {
   if (actor.role === "tech") {
     // Technicians can attach a form to their own visit.
   }
-  const rows = await db.select().from(formTemplates).orderBy(formTemplates.name);
+  const rows = await db.select().from(formTemplates).where(eq(formTemplates.entityId, actor.entityId)).orderBy(formTemplates.name);
   return { data: rows };
 }
 
@@ -723,7 +742,7 @@ export async function completeVisit(actor: Actor, visitId: string) {
       jobId: visit.jobId,
       technicianId: visit.technicianId,
       completedAt: completedAt.toISOString(),
-    });
+    }, visit.entityId);
   });
   await safeDeliver();
   return getVisit(actor, visitId);

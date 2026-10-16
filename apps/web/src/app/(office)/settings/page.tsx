@@ -1,7 +1,7 @@
 import { Field, Flash, PageHeader, buttonClass, inputClass } from "@/components/ui";
 import { updateSettingsAction } from "@/server/actions";
 import { requireOffice } from "@/server/session";
-import { getCompanySettings } from "@adel/core";
+import { getCompanySettings, getEntity } from "@adel/core";
 import Link from "next/link";
 
 export default async function SettingsPage({
@@ -12,9 +12,10 @@ export default async function SettingsPage({
   const actor = await requireOffice();
   const query = await searchParams;
   const settings = await getCompanySettings();
+  const entity = await getEntity(actor);
   return (
     <div className="max-w-2xl space-y-6">
-      <PageHeader title="Settings" lede="Adel Electric, LLC runs as one company. Adel Electric and HED are brands on the same books." />
+      <PageHeader title="Settings" lede="You are working in one company. Adel Electric and HED are brands inside Adel Electric. Service Contracts is a separate company on this desk." />
       <Flash error={query.error} notice={query.notice} forbidden={query.forbidden} />
       <div className="flex flex-wrap gap-3 text-sm">
         <Link className="font-semibold text-pine" href="/settings/team">
@@ -48,10 +49,10 @@ export default async function SettingsPage({
             </select>
           </Field>
           <Field label="Default tax percent">
-            <input className={inputClass} name="taxPercent" defaultValue={(settings.defaultTaxRateBps / 100).toFixed(2)} required />
+            <input className={inputClass} name="taxPercent" defaultValue={(entity.taxRateBps / 100).toFixed(2)} required />
           </Field>
           <Field label="Tax label">
-            <input className={inputClass} name="taxLabel" defaultValue={settings.taxLabel} required />
+            <input className={inputClass} name="taxLabel" defaultValue={entity.taxLabel} required />
           </Field>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="requireSignatureToComplete" defaultChecked={settings.requireSignatureToComplete} />
@@ -79,7 +80,7 @@ export default async function SettingsPage({
           </button>
         </form>
       ) : (
-        <p className="text-sm text-muted">Tax is {settings.taxLabel} at {(settings.defaultTaxRateBps / 100).toFixed(2)}%. An admin can change it.</p>
+        <p className="text-sm text-muted">Tax is {entity.taxLabel} at {(entity.taxRateBps / 100).toFixed(2)}%. An admin can change it.</p>
       )}
     </div>
   );

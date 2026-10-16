@@ -10,7 +10,7 @@ export default async function TechHome({ searchParams }: { searchParams: Promise
   const query = await searchParams;
   const settings = await getCompanySettings();
   const day = query.day || companyToday(settings.timeZone);
-  const [{ data }, notices] = await Promise.all([listVisits(actor, { day }), listNotifications(actor)]);
+  const [{ data }, notices] = await Promise.all([listVisits(actor, { day, board: true }), listNotifications(actor)]);
   return (
     <div className="space-y-4">
       <div>
@@ -44,6 +44,7 @@ export default async function TechHome({ searchParams }: { searchParams: Promise
               <p className="font-serif text-2xl">{visit.customerName}</p>
               <p className="text-sm">{visit.line1}</p>
               <p className="text-sm text-muted">{visit.jobTitle}</p>
+              <p className="mt-2 text-xs font-semibold text-copper">{visit.entityName}</p>
               <div className="mt-2 flex items-center justify-between">
                 <BrandChip name={visit.brandName} />
                 <StatusPill status={visit.status} />

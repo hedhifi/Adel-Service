@@ -1,6 +1,6 @@
 import { summarizeMoney, type PricedLine } from "@adel/db/money";
 import { newSecret } from "@adel/db/secrets";
-import { brands, customers, db, jobs, properties, quoteLineItems, quotes, requests } from "@adel/db";
+import { brands, customers, db, entities, jobs, properties, quoteLineItems, quotes, requests } from "@adel/db";
 import { and, desc, eq, ilike, sql } from "drizzle-orm";
 import { z } from "zod";
 import { nextNumber, type Tx } from "./db";
@@ -8,6 +8,7 @@ import { AppError, notFound } from "./errors";
 import { lineItemSchema, pageSchema, parse, type LineInput } from "./parse";
 import { assertOffice, type Actor } from "./permissions";
 import { assertProperty } from "./records";
+import { assertActiveBook } from "./scope";
 import { getCompanySettings } from "./settings";
 import { emitEvent, safeDeliver } from "./webhooks";
 
@@ -44,6 +45,7 @@ async function loadQuote(id: string) {
       city: properties.city,
       state: properties.state,
       postalCode: properties.postalCode,
+      entityId: quotes.entityId,
       brandId: quotes.brandId,
       brandName: brands.name,
       requestId: quotes.requestId,
@@ -95,14 +97,14 @@ export async function listQuotes(
 ) {
   assertOffice(actor);
   const page = parse(pageSchema, { limit: query.limit ?? 50, offset: query.offset ?? 0 });
-  const filters = [];
+  const filters = [eq(quotes.entityId, actor.entityId)];
   if (query.status) {
     const status = parse(z.enum(["draft", "sent", "approved", "declined", "expired"]), query.status);
     filters.push(eq(quotes.status, status));
   }
   if (query.customerId) filters.push(eq(quotes.customerId, query.customerId));
   if (query.q?.trim()) filters.push(ilike(quotes.title, `%${query.q.trim().replace(/[%_]/g, "")}%`));
-  const where = filters.length ? and(...filters) : undefined;
+  const where = and(...filters);
   const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(quotes).where(where);
   const rows = await db
     .select({
@@ -127,7 +129,9 @@ export async function listQuotes(
 
 export async function getQuote(actor: Actor, id: string) {
   assertOffice(actor);
-  return loadQuote(id);
+  const quote = await loadQuote(id);
+  assertActiveBook(actor, quote.data.entityId);
+  return quote;
 }
 
 const quoteWrite = z.object({
@@ -160,13 +164,16 @@ export async function createQuote(actor: Actor, input: unknown) {
   assertOffice(actor);
   const data = parse(quoteWrite, input);
   const settings = await getCompanySettings();
-  const taxRateBps = data.taxRateBps ?? settings.defaultTaxRateBps;
+  const [entity] = await db.select().from(entities).where(eq(entities.id, actor.entityId));
+  const taxRateBps = data.taxRateBps ?? entity?.taxRateBps ?? settings.defaultTaxRateBps;
   priceLines(data.lineItems, taxRateBps);
   const id = await db.transaction(async (tx) => {
     const [customer] = await tx.select().from(customers).where(eq(customers.id, data.customerId));
     if (!customer) throw notFound("Customer not found.");
-    await assertProperty(tx, data.customerId, data.propertyId);
-    const [brand] = await tx.select().from(brands).where(eq(brands.id, data.brandId));
+    assertActiveBook(actor, customer.entityId);
+    const property = await assertProperty(tx, data.customerId, data.propertyId);
+    assertActiveBook(actor, property.entityId);
+    const [brand] = await tx.select().from(brands).where(and(eq(brands.id, data.brandId), eq(brands.entityId, actor.entityId)));
     if (!brand) throw new AppError(400, "Unknown brand.", "unknown_brand");
     if (data.requestId) {
       const [request] = await tx.select().from(requests).where(eq(requests.id, data.requestId));
@@ -174,10 +181,11 @@ export async function createQuote(actor: Actor, input: unknown) {
         throw new AppError(400, "That request is not for this customer.", "request_mismatch");
       }
     }
-    const number = await nextNumber(tx, "quote");
+    const number = await nextNumber(tx, actor.entityId, "quote");
     const [quote] = await tx
       .insert(quotes)
       .values({
+        entityId: actor.entityId,
         number,
         customerId: data.customerId,
         propertyId: data.propertyId,
@@ -206,6 +214,7 @@ export async function updateQuote(actor: Actor, id: string, input: unknown) {
   const data = parse(quoteWrite.partial(), input);
   const [existing] = await db.select().from(quotes).where(eq(quotes.id, id));
   if (!existing) throw notFound("Estimate not found.");
+  assertActiveBook(actor, existing.entityId);
   if (existing.status !== "draft") throw new AppError(409, "Only a draft estimate can be edited.", "quote_locked");
   const taxRateBps = data.taxRateBps ?? existing.taxRateBps;
   if (data.lineItems) priceLines(data.lineItems, taxRateBps);
@@ -234,6 +243,7 @@ export async function sendQuote(actor: Actor, id: string) {
   assertOffice(actor);
   const [existing] = await db.select().from(quotes).where(eq(quotes.id, id));
   if (!existing) throw notFound("Estimate not found.");
+  assertActiveBook(actor, existing.entityId);
   if (existing.status !== "draft") throw new AppError(409, "Only a draft estimate can be sent.", "invalid_state");
   const validUntil = existing.validUntil ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   await db
@@ -255,6 +265,7 @@ export async function approveQuote(actor: Actor, id: string, input: unknown) {
   const approved = await db.transaction(async (tx) => {
     const [existing] = await tx.select().from(quotes).where(eq(quotes.id, id));
     if (!existing) throw notFound("Estimate not found.");
+    assertActiveBook(actor, existing.entityId);
     if (existing.status !== "draft" && existing.status !== "sent") {
       throw new AppError(409, "This estimate can't be approved.", "invalid_state");
     }
@@ -273,7 +284,7 @@ export async function approveQuote(actor: Actor, id: string, input: unknown) {
       number: existing.number,
       customerId: existing.customerId,
       totalCents: loaded.data.totalCents,
-    });
+    }, existing.entityId);
     return existing.id;
   });
   await safeDeliver();
@@ -285,6 +296,7 @@ export async function declineQuote(actor: Actor, id: string, input: unknown) {
   const data = parse(z.object({ reason: z.string().trim().max(500).optional() }), input ?? {});
   const [existing] = await db.select().from(quotes).where(eq(quotes.id, id));
   if (!existing) throw notFound("Estimate not found.");
+  assertActiveBook(actor, existing.entityId);
   if (existing.status !== "draft" && existing.status !== "sent") {
     throw new AppError(409, "This estimate can't be declined.", "invalid_state");
   }
@@ -308,10 +320,12 @@ export async function convertQuote(actor: Actor, id: string) {
     if (quote.status !== "approved") throw new AppError(409, "Approve the estimate before opening a job.", "invalid_state");
     const [existingJob] = await tx.select().from(jobs).where(eq(jobs.quoteId, id));
     if (existingJob) throw new AppError(409, "This estimate is already a job.", "job_exists");
-    const number = await nextNumber(tx, "job");
+    assertActiveBook(actor, quote.entityId);
+    const number = await nextNumber(tx, quote.entityId, "job");
     const [job] = await tx
       .insert(jobs)
       .values({
+        entityId: quote.entityId,
         number,
         customerId: quote.customerId,
         propertyId: quote.propertyId,
@@ -375,7 +389,7 @@ export async function decidePublicQuote(token: string, input: unknown) {
         customerId: quote.customerId,
         totalCents: loaded.data.totalCents,
         via: "customer_link",
-      });
+      }, quote.entityId);
     });
     await safeDeliver();
   } else {

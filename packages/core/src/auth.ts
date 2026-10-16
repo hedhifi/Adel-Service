@@ -1,5 +1,5 @@
 import { hashSecret, newSecret } from "@adel/db/secrets";
-import { apiTokens, db, sessions, users } from "@adel/db";
+import { ADEL_ENTITY_ID, apiTokens, db, entities, entityMemberships, sessions, users } from "@adel/db";
 import bcrypt from "bcryptjs";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -24,8 +24,35 @@ export function publicUser(user: { id: string; name: string; email: string; role
   };
 }
 
-function toActor(user: { id: string; name: string; email: string; role: Actor["role"] }, auth: Actor["auth"]): Actor {
-  return { id: user.id, name: user.name, email: user.email, role: user.role, auth };
+async function membershipRows(userId: string) {
+  return db
+    .select({ entityId: entityMemberships.entityId, role: entityMemberships.role, name: entities.name })
+    .from(entityMemberships)
+    .innerJoin(entities, eq(entities.id, entityMemberships.entityId))
+    .where(eq(entityMemberships.userId, userId))
+    .orderBy(entities.name);
+}
+
+function actorFromMemberships(
+  user: { id: string; name: string; email: string },
+  auth: Actor["auth"],
+  rows: Array<{ entityId: string; role: Actor["role"]; name: string }>,
+  activeEntityId: string,
+  pinned: boolean,
+): Actor {
+  const active = rows.find((row) => row.entityId === activeEntityId);
+  if (!active) throw new AppError(401, "That login is not a member of a company.", "unauthenticated");
+  const visible = pinned ? [active] : rows;
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: active.role,
+    auth,
+    entityId: active.entityId,
+    entityIds: visible.map((row) => row.entityId),
+    entities: visible,
+  };
 }
 
 export async function loginWithPassword(input: unknown) {
@@ -41,13 +68,24 @@ export async function loginWithPassword(input: unknown) {
   if (!user || !user.active || !(await bcrypt.compare(data.password, user.passwordHash))) {
     throw new AppError(401, "Those credentials don't match.", "invalid_credentials");
   }
+  const memberships = await membershipRows(user.id);
+  const active = memberships.find((row) => row.entityId === ADEL_ENTITY_ID) ?? memberships[0];
+  if (!active) throw new AppError(403, "This login is not a member of a company.", "forbidden");
   const token = newSecret("sess_");
   await db.insert(sessions).values({
     userId: user.id,
+    activeEntityId: active.entityId,
     tokenHash: hashSecret(token),
     expiresAt: new Date(Date.now() + SESSION_MS),
   });
   return { token, user: publicUser(user) };
+}
+
+export async function switchEntity(actor: Actor, entityId: string) {
+  if (actor.auth !== "session") throw new AppError(400, "An API token stays in one company.", "invalid_input");
+  if (!actor.entityIds.includes(entityId)) throw new AppError(403, "You are not a member of that company.", "forbidden");
+  await db.update(sessions).set({ activeEntityId: entityId }).where(eq(sessions.userId, actor.id));
+  return { data: { entityId } };
 }
 
 export async function logoutSession(token: string) {
@@ -59,7 +97,9 @@ export async function authenticateSessionToken(token: string): Promise<Actor | n
   if (!session || session.expiresAt.getTime() < Date.now()) return null;
   const [user] = await db.select().from(users).where(eq(users.id, session.userId));
   if (!user || !user.active) return null;
-  return toActor(user, "session");
+  const rows = await membershipRows(user.id);
+  if (!rows.some((row) => row.entityId === session.activeEntityId)) return null;
+  return actorFromMemberships(user, "session", rows, session.activeEntityId, false);
 }
 
 export async function authenticateBearer(header: string): Promise<Actor> {
@@ -72,17 +112,14 @@ export async function authenticateBearer(header: string): Promise<Actor> {
   if (!userId) throw new AppError(401, "That API token is not valid.", "unauthenticated");
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user || !user.active) throw new AppError(401, "That API token is not valid.", "unauthenticated");
-  if (token.role === "tech" && user.role !== "tech") {
+  const rows = await membershipRows(user.id);
+  const membership = rows.find((row) => row.entityId === token.entityId);
+  if (!membership) throw new AppError(401, "That API token is not valid.", "unauthenticated");
+  if (token.role === "tech" && membership.role !== "tech") {
     throw new AppError(401, "That API token is not valid.", "unauthenticated");
   }
   await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, token.id));
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: token.role,
-    auth: "token",
-  };
+  return actorFromMemberships(user, "token", [{ ...membership, role: token.role }], token.entityId, true);
 }
 
 export async function listUsers(actor: Actor) {
@@ -114,6 +151,7 @@ export async function createUser(actor: Actor, input: unknown) {
         phone: data.phone,
       })
       .returning();
+    await db.insert(entityMemberships).values({ userId: user.id, entityId: actor.entityId, role: data.role });
     return { data: publicUser(user) };
   } catch (err) {
     if (isUniqueViolation(err)) throw new AppError(409, "That email is already in use.", "email_taken");
@@ -135,7 +173,7 @@ export async function setUserActive(actor: Actor, userId: string, input: unknown
 
 export async function listApiTokens(actor: Actor) {
   assertAdmin(actor);
-  const rows = await db.select().from(apiTokens).orderBy(desc(apiTokens.createdAt));
+  const rows = await db.select().from(apiTokens).where(eq(apiTokens.entityId, actor.entityId)).orderBy(desc(apiTokens.createdAt));
   return {
     data: rows.map((row) => ({
       id: row.id,
@@ -179,6 +217,7 @@ export async function createApiToken(actor: Actor, input: unknown) {
       tokenHash: hashSecret(secret),
       tokenPrefix: secret.slice(0, 12),
       role: data.role,
+      entityId: actor.entityId,
       userId,
       createdById: actor.id,
     })
@@ -201,10 +240,10 @@ export async function revokeApiToken(actor: Actor, tokenId: string) {
   const [row] = await db
     .update(apiTokens)
     .set({ revokedAt: new Date() })
-    .where(and(eq(apiTokens.id, tokenId), isNull(apiTokens.revokedAt)))
+    .where(and(eq(apiTokens.id, tokenId), eq(apiTokens.entityId, actor.entityId), isNull(apiTokens.revokedAt)))
     .returning();
   if (!row) {
-    const [existing] = await db.select().from(apiTokens).where(eq(apiTokens.id, tokenId));
+    const [existing] = await db.select().from(apiTokens).where(and(eq(apiTokens.id, tokenId), eq(apiTokens.entityId, actor.entityId)));
     if (!existing) throw new AppError(404, "API token not found.", "not_found");
     return { data: { id: existing.id, revokedAt: existing.revokedAt } };
   }

@@ -1,4 +1,4 @@
-import { customers, db, jobs, properties, speechTerms, visits } from "@adel/db";
+import { ADEL_ENTITY_ID, customers, db, jobs, properties, speechTerms, visits } from "@adel/db";
 import {
   AppError,
   NOT_TRANSLATED,
@@ -155,19 +155,20 @@ describe("voice dictation", () => {
 
   it("stores the source language and the raw Spanish on the note", async () => {
     const { adel, tech } = await seedCompany();
-    const [customer] = await db.insert(customers).values({ brandId: adel.id, name: "Camille Calder" }).returning();
+    const [customer] = await db.insert(customers).values({ entityId: ADEL_ENTITY_ID, brandId: adel.id, name: "Camille Calder" }).returning();
     const [property] = await db
       .insert(properties)
-      .values({ customerId: customer.id, label: "House", line1: "1 Main", city: "Naples", postalCode: "34102" })
+      .values({ entityId: ADEL_ENTITY_ID, customerId: customer.id, label: "House", line1: "1 Main", city: "Naples", postalCode: "34102" })
       .returning();
     const [job] = await db
       .insert(jobs)
-      .values({ number: 9001, customerId: customer.id, propertyId: property.id, brandId: adel.id, title: "Panel", status: "scheduled" })
+      .values({ entityId: ADEL_ENTITY_ID, number: 9001, customerId: customer.id, propertyId: property.id, brandId: adel.id, title: "Panel", status: "scheduled" })
       .returning();
     const start = new Date("2026-10-16T14:00:00.000Z");
     const [visit] = await db
       .insert(visits)
       .values({
+        entityId: ADEL_ENTITY_ID,
         jobId: job.id,
         technicianId: tech.id,
         scheduledStart: start,

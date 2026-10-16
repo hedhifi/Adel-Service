@@ -47,6 +47,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
                     </Link>
                     <p>{visit.jobTitle}</p>
                     <p className="text-muted">{visit.line1}</p>
+                    <p className="text-xs font-semibold text-copper">{visit.entityName}</p>
                     <div className="mt-2 flex items-center justify-between">
                       <BrandChip name={visit.brandName} />
                       <StatusPill status={visit.status} />

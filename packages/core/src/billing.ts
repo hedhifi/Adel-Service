@@ -16,7 +16,8 @@ import { nextNumber, type Tx } from "./db";
 import { AppError, notFound } from "./errors";
 import { lineItemSchema, pageSchema, parse, type LineInput } from "./parse";
 import { assertOffice, type Actor } from "./permissions";
-import { getCompanySettings } from "./settings";
+import { assertActiveBook } from "./scope";
+import { getEntity } from "./settings";
 import { emitEvent, safeDeliver } from "./webhooks";
 
 function priceLines(lines: PricedLine[], taxRateBps: number) {
@@ -100,6 +101,7 @@ async function refreshInvoiceStatus(tx: Tx, invoiceId: string) {
 export async function assertCanCollect(actor: Actor, invoiceId: string) {
   const [invoice] = await db.select().from(invoices).where(eq(invoices.id, invoiceId));
   if (!invoice) throw notFound("Invoice not found.");
+  assertActiveBook(actor, invoice.entityId);
   if (actor.role === "admin" || actor.role === "office") return invoice;
   if (!invoice.jobId) throw new AppError(403, "You can't collect on this invoice.", "forbidden");
   const [visit] = await db
@@ -117,13 +119,13 @@ export async function listInvoices(
 ) {
   assertOffice(actor);
   const page = parse(pageSchema, { limit: query.limit ?? 50, offset: query.offset ?? 0 });
-  const filters = [];
+  const filters = [eq(invoices.entityId, actor.entityId)];
   if (query.status) {
     const status = parse(z.enum(["draft", "issued", "partial", "paid", "void"]), query.status);
     filters.push(eq(invoices.status, status));
   }
   if (query.customerId) filters.push(eq(invoices.customerId, query.customerId));
-  const where = filters.length ? and(...filters) : undefined;
+  const where = and(...filters);
   const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(invoices).where(where);
   const rows = await db
     .select({
@@ -160,17 +162,18 @@ export async function createInvoice(actor: Actor, input: unknown) {
     }),
     input,
   );
-  const settings = await getCompanySettings();
+  const entity = await getEntity(actor);
   const id = await db.transaction(async (tx) => {
     const [job] = await tx.select().from(jobs).where(eq(jobs.id, data.jobId));
     if (!job) throw notFound("Job not found.");
+    assertActiveBook(actor, job.entityId);
     const [existing] = await tx
       .select()
       .from(invoices)
       .where(and(eq(invoices.jobId, job.id), ne(invoices.status, "void")));
     if (existing) throw new AppError(409, "This job already has an invoice.", "invoice_exists");
     let lines = data.lineItems;
-    let taxRateBps = settings.defaultTaxRateBps;
+    let taxRateBps = entity.taxRateBps;
     if (!lines) {
       if (!job.quoteId) throw new AppError(400, "Add line items. This job has no estimate to copy.", "line_items_required");
       const [quote] = await tx.select().from(quotes).where(eq(quotes.id, job.quoteId));
@@ -186,10 +189,11 @@ export async function createInvoice(actor: Actor, input: unknown) {
       }));
     }
     priceLines(lines, taxRateBps);
-    const number = await nextNumber(tx, "invoice");
+    const number = await nextNumber(tx, job.entityId, "invoice");
     const [invoice] = await tx
       .insert(invoices)
       .values({
+        entityId: job.entityId,
         number,
         jobId: job.id,
         customerId: job.customerId,
@@ -239,7 +243,7 @@ export async function issueInvoice(actor: Actor, id: string) {
       number: invoice.number,
       customerId: invoice.customerId,
       totalCents: summary.totalCents,
-    });
+    }, invoice.entityId);
   });
   await safeDeliver();
   return loadInvoice(id);
@@ -271,6 +275,7 @@ export async function recordManualPayment(actor: Actor, invoiceId: string, input
   await db.transaction(async (tx) => {
     const [invoice] = await tx.select().from(invoices).where(eq(invoices.id, invoiceId));
     if (!invoice) throw notFound("Invoice not found.");
+    assertActiveBook(actor, invoice.entityId);
     if (invoice.status !== "issued" && invoice.status !== "partial") {
       throw new AppError(409, "Issue the invoice before recording a payment.", "invalid_state");
     }
@@ -296,7 +301,7 @@ export async function recordManualPayment(actor: Actor, invoiceId: string, input
       invoiceId,
       amountCents: payment.amountCents,
       method: payment.method,
-    });
+    }, invoice.entityId);
   });
   await safeDeliver();
   return loadInvoice(invoiceId);
@@ -377,12 +382,13 @@ export async function markCardPaymentSucceeded(stripePaymentIntentId: string, am
       .set({ status: "succeeded", amountCents: amount, receivedAt: new Date() })
       .where(eq(payments.id, payment.id));
     await refreshInvoiceStatus(tx, payment.invoiceId);
+    const [invoice] = await tx.select().from(invoices).where(eq(invoices.id, payment.invoiceId));
     await emitEvent(tx, "payment.received", {
       paymentId: payment.id,
       invoiceId: payment.invoiceId,
       amountCents: amount,
       method: "card",
-    });
+    }, invoice?.entityId ?? payment.invoiceId);
     return payment;
   });
   if (updated && updated.status !== "succeeded") await safeDeliver();

@@ -123,7 +123,7 @@ Arrival inside 150 meters can set the visit to on site. Leaving records a depart
 
 ## Assumptions (v1)
 
-- Adel Electric and HED are brands on one company, not two tenants.
+- Adel Electric and Service Contracts are two companies in one database. Adel Electric and HED are brands inside Adel Electric. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - Default tax is 7% (700 basis points), labeled as an estimate. Materials are taxable. Labor is not. The rate is snapshotted onto each estimate and invoice.
 - The shop clock is `America/New_York`. `America/Chicago` is the other option in settings.
 - The office can approve a draft or a sent estimate in person. A customer can approve or decline only from the link, and only while the estimate is sent and inside 30 days.

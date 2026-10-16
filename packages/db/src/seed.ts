@@ -17,6 +17,7 @@ const { eq } = await import("drizzle-orm");
 const { hashSecret, newSecret } = await import("./secrets");
 const { companyToday, zonedDateTime } = await import("./zoned");
 const { truncateAll } = await import("./reset");
+const { ADEL_ENTITY_ID, SERVICE_BRAND_ID, SERVICE_ENTITY_ID } = await import("./ids");
 const { db, sql } = await import("./client");
 const schema = await import("./schema");
 
@@ -24,6 +25,8 @@ const {
   apiTokens,
   brands,
   companySettings,
+  entities,
+  entityMemberships,
   counters,
   customers,
   formTemplates,
@@ -67,8 +70,14 @@ await db.insert(companySettings).values({
   shopAddress: "4180 Enterprise Avenue, Naples, FL 34104",
 });
 
-const [adel] = await db.insert(brands).values({ name: "Adel Electric", slug: "adel-electric" }).returning();
-const [hed] = await db.insert(brands).values({ name: "HED", slug: "hed" }).returning();
+await db.insert(entities).values([
+  { id: ADEL_ENTITY_ID, name: "Adel Electric", slug: "adel-electric", taxRateBps: 700, taxLabel: "Estimated Florida sales tax" },
+  { id: SERVICE_ENTITY_ID, name: "Service Contracts", slug: "service-contracts", taxRateBps: 700, taxLabel: "Estimated Florida sales tax" },
+]);
+
+const [adel] = await db.insert(brands).values({ entityId: ADEL_ENTITY_ID, name: "Adel Electric", slug: "adel-electric" }).returning();
+const [hed] = await db.insert(brands).values({ entityId: ADEL_ENTITY_ID, name: "HED", slug: "hed" }).returning();
+await db.insert(brands).values({ id: SERVICE_BRAND_ID, entityId: SERVICE_ENTITY_ID, name: "Service Contracts", slug: "service-contracts" });
 
 const [alan] = await db
   .insert(users)
@@ -87,6 +96,13 @@ const [sofia] = await db
   .values({ name: "Sofia Brennan", email: "sofia.brennan@adel.example", passwordHash, role: "tech", phone: "239-555-0194" })
   .returning();
 
+await db.insert(entityMemberships).values(
+  [alan, renee, marco, sofia].flatMap((person) => [
+    { userId: person.id, entityId: ADEL_ENTITY_ID, role: person.role },
+    { userId: person.id, entityId: SERVICE_ENTITY_ID, role: person.role },
+  ]),
+);
+
 async function addCustomer(input: {
   brandId: string;
   name: string;
@@ -98,6 +114,7 @@ async function addCustomer(input: {
   const [customer] = await db
     .insert(customers)
     .values({
+      entityId: ADEL_ENTITY_ID,
       brandId: input.brandId,
       name: input.name,
       email: input.email,
@@ -107,7 +124,7 @@ async function addCustomer(input: {
     .returning();
   const [property] = await db
     .insert(properties)
-    .values({ customerId: customer.id, state: "FL", ...input.property })
+    .values({ entityId: ADEL_ENTITY_ID, customerId: customer.id, state: "FL", ...input.property })
     .returning();
   return { customer, property };
 }
@@ -217,6 +234,7 @@ const lila = await addCustomer({
 const [panelRequest] = await db
   .insert(requests)
   .values({
+    entityId: ADEL_ENTITY_ID,
     customerId: camille.customer.id,
     propertyId: camille.property.id,
     brandId: adel.id,
@@ -231,6 +249,7 @@ const [panelRequest] = await db
 const [helenQuote] = await db
   .insert(quotes)
   .values({
+    entityId: ADEL_ENTITY_ID,
     number: 1001,
     customerId: helen.customer.id,
     propertyId: helen.property.id,
@@ -249,6 +268,7 @@ await db.insert(quoteLineItems).values([
   { quoteId: helenQuote.id, position: 1, kind: "material", description: "Devices, dimmers, and wire", quantity: "1.00", unitAmountCents: 64000, taxable: true },
 ]);
 await db.insert(requests).values({
+  entityId: ADEL_ENTITY_ID,
   customerId: helen.customer.id,
   propertyId: helen.property.id,
   brandId: adel.id,
@@ -272,6 +292,7 @@ async function addApprovedQuote(input: {
   const [quote] = await db
     .insert(quotes)
     .values({
+      entityId: ADEL_ENTITY_ID,
       number: input.number,
       customerId: input.customerId,
       propertyId: input.propertyId,
@@ -356,7 +377,7 @@ async function addJob(input: {
   instructions: string;
   status: "scheduled" | "in_progress" | "completed";
 }) {
-  const [job] = await db.insert(jobs).values(input).returning();
+  const [job] = await db.insert(jobs).values({ ...input, entityId: ADEL_ENTITY_ID }).returning();
   return job;
 }
 
@@ -404,6 +425,7 @@ const lilaJob = await addJob({
 const [electricalForm] = await db
   .insert(formTemplates)
   .values({
+    entityId: ADEL_ENTITY_ID,
     brandId: adel.id,
     name: "Electrical closeout",
     items: [
@@ -418,6 +440,7 @@ const [electricalForm] = await db
 const [avForm] = await db
   .insert(formTemplates)
   .values({
+    entityId: ADEL_ENTITY_ID,
     brandId: hed.id,
     name: "AV commissioning",
     items: [
@@ -433,6 +456,7 @@ const [avForm] = await db
 const [marcoVisit] = await db
   .insert(visits)
   .values({
+    entityId: ADEL_ENTITY_ID,
     jobId: anyaJob.id,
     technicianId: marco.id,
     scheduledStart: zonedDateTime(today, "08:30", timeZone),
@@ -456,6 +480,7 @@ await db.insert(visitNotes).values({
 const [sofiaVisit] = await db
   .insert(visits)
   .values({
+    entityId: ADEL_ENTITY_ID,
     jobId: iyerJob.id,
     technicianId: sofia.id,
     scheduledStart: zonedDateTime(today, "13:00", timeZone),
@@ -519,6 +544,7 @@ await db.insert(locationPoints).values([
 ]);
 
 await db.insert(visits).values({
+  entityId: ADEL_ENTITY_ID,
   jobId: marcusJob.id,
   technicianId: marco.id,
   scheduledStart: zonedDateTime("2026-10-02", "09:00", timeZone),
@@ -532,6 +558,7 @@ await db.insert(visits).values({
 const [marcusInvoice] = await db
   .insert(invoices)
   .values({
+    entityId: ADEL_ENTITY_ID,
     number: 1001,
     jobId: marcusJob.id,
     customerId: marcus.customer.id,
@@ -551,6 +578,7 @@ await db.insert(invoiceLineItems).values([
 const [lilaInvoice] = await db
   .insert(invoices)
   .values({
+    entityId: ADEL_ENTITY_ID,
     number: 1002,
     jobId: lilaJob.id,
     customerId: lila.customer.id,
@@ -576,13 +604,14 @@ await db.insert(payments).values({
 });
 
 await db.insert(counters).values([
-  { name: "quote", value: 1005 },
-  { name: "job", value: 1004 },
-  { name: "invoice", value: 1002 },
+  { entityId: ADEL_ENTITY_ID, name: "quote", value: 1005 },
+  { entityId: ADEL_ENTITY_ID, name: "job", value: 1004 },
+  { entityId: ADEL_ENTITY_ID, name: "invoice", value: 1002 },
 ]);
 
 const demoSecret = newSecret("adel_");
 await db.insert(apiTokens).values({
+  entityId: ADEL_ENTITY_ID,
   name: "Local demo",
   tokenHash: hashSecret(demoSecret),
   tokenPrefix: demoSecret.slice(0, 12),

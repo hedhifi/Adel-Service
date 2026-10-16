@@ -42,6 +42,7 @@ import {
   deleteSpeechTerm,
   setDictationLanguage,
   suggestSpeechTerm,
+  switchEntity,
   updateSpeechTerm,
 } from "@adel/core";
 import { cookies } from "next/headers";
@@ -107,6 +108,16 @@ export async function logoutAction() {
   if (token) await logoutSession(token);
   jar.delete("adel_session");
   redirect("/login");
+}
+
+export async function switchEntityAction(formData: FormData) {
+  const actor = await requireUser();
+  try {
+    await switchEntity(actor, text(formData, "entityId"));
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+  }
+  redirect(actor.role === "tech" ? "/tech" : "/");
 }
 
 export async function createCustomerAction(formData: FormData) {

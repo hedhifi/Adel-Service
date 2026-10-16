@@ -26,6 +26,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "apps/web/src"),
       "@adel/db/secrets": path.resolve(__dirname, "packages/db/src/secrets.ts"),
+      "@adel/db/ids": path.resolve(__dirname, "packages/db/src/ids.ts"),
       "@adel/db/money": path.resolve(__dirname, "packages/db/src/money.ts"),
       "@adel/db/zoned": path.resolve(__dirname, "packages/db/src/zoned.ts"),
       "@adel/db": path.resolve(__dirname, "packages/db/src/index.ts"),

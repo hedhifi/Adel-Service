@@ -1,4 +1,4 @@
-import { customers, db, jobs, notifications, properties, sql, visitNotes, visitPhotos, visits } from "@adel/db";
+import { ADEL_ENTITY_ID, customers, db, jobs, notifications, properties, sql, visitNotes, visitPhotos, visits } from "@adel/db";
 import { companyToday, zonedDateTime } from "@adel/db/zoned";
 import {
   AppError,
@@ -20,10 +20,11 @@ const zone = "America/New_York";
 let jobSeq = 8000;
 
 async function siteFor(techId: string, adelId: string, latitude: number, longitude: number, status: "scheduled" | "completed" | "canceled" = "scheduled") {
-  const [customer] = await db.insert(customers).values({ brandId: adelId, name: "Harbour Client" }).returning();
+  const [customer] = await db.insert(customers).values({ entityId: ADEL_ENTITY_ID, brandId: adelId, name: "Harbour Client" }).returning();
   const [property] = await db
     .insert(properties)
     .values({
+      entityId: ADEL_ENTITY_ID,
       customerId: customer.id,
       label: "House",
       line1: "1 Bay",
@@ -35,12 +36,13 @@ async function siteFor(techId: string, adelId: string, latitude: number, longitu
     .returning();
   const [job] = await db
     .insert(jobs)
-    .values({ number: jobSeq++, customerId: customer.id, propertyId: property.id, brandId: adelId, title: "Service", status: "scheduled" })
+    .values({ entityId: ADEL_ENTITY_ID, number: jobSeq++, customerId: customer.id, propertyId: property.id, brandId: adelId, title: "Service", status: "scheduled" })
     .returning();
   const start = zonedDateTime(companyToday(zone), "10:00", zone);
   const [visit] = await db
     .insert(visits)
     .values({
+      entityId: ADEL_ENTITY_ID,
       jobId: job.id,
       technicianId: techId,
       scheduledStart: start,

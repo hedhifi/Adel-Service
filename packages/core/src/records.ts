@@ -14,6 +14,7 @@ import type { Tx } from "./db";
 import { AppError, notFound } from "./errors";
 import { isUniqueViolation, optionalText, pageSchema, parse } from "./parse";
 import { assertOffice, type Actor } from "./permissions";
+import { assertActiveBook } from "./scope";
 import { emitEvent, safeDeliver } from "./webhooks";
 
 const customerInput = z.object({
@@ -38,8 +39,8 @@ function likeTerm(value: string) {
   return `%${value.replace(/[%_]/g, "")}%`;
 }
 
-async function requireBrand(tx: Tx, brandId: string) {
-  const [brand] = await tx.select().from(brands).where(eq(brands.id, brandId));
+async function requireBrand(tx: Tx, brandId: string, entityId: string) {
+  const [brand] = await tx.select().from(brands).where(and(eq(brands.id, brandId), eq(brands.entityId, entityId)));
   if (!brand) throw new AppError(400, "Unknown brand.", "unknown_brand");
   return brand;
 }
@@ -66,9 +67,10 @@ export async function listCustomers(actor: Actor, query: { q?: string; limit?: u
   assertOffice(actor);
   const page = parse(pageSchema, { limit: query.limit ?? 50, offset: query.offset ?? 0 });
   const term = query.q?.trim();
-  const where = term
-    ? or(ilike(customers.name, likeTerm(term)), ilike(customers.email, likeTerm(term)), ilike(customers.phone, likeTerm(term)))
-    : undefined;
+  const where = and(
+    eq(customers.entityId, actor.entityId),
+    term ? or(ilike(customers.name, likeTerm(term)), ilike(customers.email, likeTerm(term)), ilike(customers.phone, likeTerm(term))) : undefined,
+  );
   const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(customers).where(where);
   const rows = await db
     .select({
@@ -79,6 +81,7 @@ export async function listCustomers(actor: Actor, query: { q?: string; limit?: u
       notes: customers.notes,
       brandId: customers.brandId,
       brandName: brands.name,
+      entityId: customers.entityId,
       createdAt: customers.createdAt,
     })
     .from(customers)
@@ -103,6 +106,7 @@ export async function getCustomer(actor: Actor, id: string) {
       notes: customers.notes,
       brandId: customers.brandId,
       brandName: brands.name,
+      entityId: customers.entityId,
       createdAt: customers.createdAt,
       updatedAt: customers.updatedAt,
     })
@@ -110,6 +114,7 @@ export async function getCustomer(actor: Actor, id: string) {
     .innerJoin(brands, eq(brands.id, customers.brandId))
     .where(eq(customers.id, id));
   if (!customer) throw notFound("Customer not found.");
+  assertActiveBook(actor, customer.entityId);
   const locationRows = await db.select().from(properties).where(eq(properties.customerId, id)).orderBy(properties.label);
   return { data: { ...customer, properties: locationRows } };
 }
@@ -118,9 +123,9 @@ export async function createCustomer(actor: Actor, input: unknown) {
   assertOffice(actor);
   const data = parse(customerInput, input);
   return db.transaction(async (tx) => {
-    await requireBrand(tx, data.brandId);
+    await requireBrand(tx, data.brandId, actor.entityId);
     try {
-      const [row] = await tx.insert(customers).values(data).returning();
+      const [row] = await tx.insert(customers).values({ ...data, entityId: actor.entityId }).returning();
       const [brand] = await tx.select().from(brands).where(eq(brands.id, row.brandId));
       return { data: { ...row, brandName: brand?.name ?? null, properties: [] } };
     } catch (err) {
@@ -135,7 +140,8 @@ export async function updateCustomer(actor: Actor, id: string, input: unknown) {
   const data = parse(customerInput.partial(), input);
   const [existing] = await db.select().from(customers).where(eq(customers.id, id));
   if (!existing) throw notFound("Customer not found.");
-  if (data.brandId) await requireBrand(db as unknown as Tx, data.brandId);
+  assertActiveBook(actor, existing.entityId);
+  if (data.brandId) await requireBrand(db as unknown as Tx, data.brandId, existing.entityId);
   const [row] = await db
     .update(customers)
     .set({ ...data, updatedAt: new Date() })
@@ -149,9 +155,10 @@ export async function createProperty(actor: Actor, customerId: string, input: un
   const data = parse(propertyInput, input);
   const [customer] = await db.select().from(customers).where(eq(customers.id, customerId));
   if (!customer) throw notFound("Customer not found.");
+  assertActiveBook(actor, customer.entityId);
   const [row] = await db
     .insert(properties)
-    .values({ ...data, state: (data.state ?? "FL").toUpperCase(), customerId })
+    .values({ ...data, state: (data.state ?? "FL").toUpperCase(), customerId, entityId: customer.entityId })
     .returning();
   return { data: row };
 }
@@ -161,6 +168,7 @@ export async function updateProperty(actor: Actor, propertyId: string, input: un
   const data = parse(propertyInput.partial(), input);
   const [existing] = await db.select().from(properties).where(eq(properties.id, propertyId));
   if (!existing) throw notFound("Service location not found.");
+  assertActiveBook(actor, existing.entityId);
   const [row] = await db
     .update(properties)
     .set({
@@ -187,14 +195,14 @@ export async function listRequests(
 ) {
   assertOffice(actor);
   const page = parse(pageSchema, { limit: query.limit ?? 50, offset: query.offset ?? 0 });
-  const filters = [];
+  const filters = [eq(requests.entityId, actor.entityId)];
   if (query.status) {
     const status = parse(z.enum(["new", "reviewing", "quoted", "closed", "canceled"]), query.status);
     filters.push(eq(requests.status, status));
   }
   if (query.customerId) filters.push(eq(requests.customerId, query.customerId));
   if (query.q?.trim()) filters.push(ilike(requests.title, likeTerm(query.q.trim())));
-  const where = filters.length ? and(...filters) : undefined;
+  const where = and(...filters);
   const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(requests).where(where);
   const rows = await db
     .select({
@@ -249,6 +257,7 @@ export async function getRequest(actor: Actor, id: string) {
     .innerJoin(brands, eq(brands.id, requests.brandId))
     .where(eq(requests.id, id));
   if (!row) throw notFound("Request not found.");
+  assertActiveBook(actor, (await db.select({ entityId: requests.entityId }).from(requests).where(eq(requests.id, id)))[0]?.entityId);
   const relatedQuotes = await db
     .select({ id: quotes.id, number: quotes.number, status: quotes.status, title: quotes.title })
     .from(quotes)
@@ -260,13 +269,15 @@ export async function createRequest(actor: Actor, input: unknown) {
   assertOffice(actor);
   const data = parse(requestInput, input);
   const created = await db.transaction(async (tx) => {
-    await requireBrand(tx, data.brandId);
+    await requireBrand(tx, data.brandId, actor.entityId);
     const [customer] = await tx.select().from(customers).where(eq(customers.id, data.customerId));
     if (!customer) throw notFound("Customer not found.");
-    await assertProperty(tx, data.customerId, data.propertyId);
+    assertActiveBook(actor, customer.entityId);
+    const property = await assertProperty(tx, data.customerId, data.propertyId);
+    assertActiveBook(actor, property.entityId);
     const [row] = await tx
       .insert(requests)
-      .values({ ...data, createdById: actor.id })
+      .values({ ...data, entityId: actor.entityId, createdById: actor.id })
       .returning();
     await emitEvent(tx, "request.created", {
       requestId: row.id,
@@ -275,7 +286,7 @@ export async function createRequest(actor: Actor, input: unknown) {
       brandId: row.brandId,
       title: row.title,
       status: row.status,
-    });
+    }, actor.entityId);
     return row;
   });
   await safeDeliver();
@@ -294,6 +305,7 @@ export async function updateRequest(actor: Actor, id: string, input: unknown) {
   );
   const [existing] = await db.select().from(requests).where(eq(requests.id, id));
   if (!existing) throw notFound("Request not found.");
+  assertActiveBook(actor, existing.entityId);
   await db.update(requests).set({ ...data, updatedAt: new Date() }).where(eq(requests.id, id));
   return getRequest(actor, id);
 }

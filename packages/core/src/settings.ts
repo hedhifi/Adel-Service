@@ -1,4 +1,4 @@
-import { brands, companySettings, db } from "@adel/db";
+import { brands, companySettings, db, entities } from "@adel/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { AppError } from "./errors";
@@ -11,9 +11,15 @@ export async function getCompanySettings() {
   return row;
 }
 
+export async function getEntity(actor: Actor) {
+  const [row] = await db.select().from(entities).where(eq(entities.id, actor.entityId));
+  if (!row) throw new AppError(500, "That company is missing.", "settings_missing");
+  return row;
+}
+
 export async function listBrands(actor: Actor) {
   if (!actor) throw new AppError(401, "Sign in required.", "unauthenticated");
-  const rows = await db.select().from(brands).orderBy(brands.name);
+  const rows = await db.select().from(brands).where(eq(brands.entityId, actor.entityId)).orderBy(brands.name);
   return { data: rows };
 }
 
@@ -35,8 +41,13 @@ export async function updateCompanySettings(actor: Actor, input: unknown) {
     }),
     input,
   );
-  const patch = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+  const { defaultTaxRateBps, taxLabel, ...rest } = data;
+  const patch = Object.fromEntries(Object.entries(rest).filter(([, value]) => value !== undefined));
   const [row] = await db.update(companySettings).set(patch).where(eq(companySettings.id, "default")).returning();
   if (!row) throw new AppError(500, "Company settings are missing. Run the seed.", "settings_missing");
-  return { data: row };
+  await db
+    .update(entities)
+    .set({ taxRateBps: defaultTaxRateBps, taxLabel, updatedAt: new Date() })
+    .where(eq(entities.id, actor.entityId));
+  return { data: { ...row, defaultTaxRateBps, taxLabel } };
 }

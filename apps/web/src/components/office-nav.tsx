@@ -1,6 +1,6 @@
 "use client";
 
-import { logoutAction } from "@/server/actions";
+import { logoutAction, switchEntityAction } from "@/server/actions";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -16,7 +16,17 @@ const links = [
   ["/settings", "Settings"],
 ];
 
-export function OfficeNav({ name, role }: { name: string; role: string }) {
+export function OfficeNav({
+  name,
+  role,
+  entities,
+  activeEntityId,
+}: {
+  name: string;
+  role: string;
+  entities: Array<{ entityId: string; name: string }>;
+  activeEntityId: string;
+}) {
   const pathname = usePathname();
   return (
     <aside className="no-print border-b border-line bg-pine text-[#f6f1e6] md:min-h-screen md:border-b-0 md:border-r">
@@ -29,6 +39,18 @@ export function OfficeNav({ name, role }: { name: string; role: string }) {
           {name}
           <span className="block capitalize text-[#d7c7ae]">{role}</span>
         </p>
+        <form action={switchEntityAction} className="mt-3">
+          <label className="block text-[10px] uppercase tracking-wide text-[#d7c7ae]" htmlFor="office-entity">
+            Company
+          </label>
+          <select id="office-entity" name="entityId" defaultValue={activeEntityId} className="mt-1 w-full rounded-md bg-[#f6f1e6] px-2 py-1 text-sm text-pine" onChange={(event) => event.currentTarget.form?.requestSubmit()}>
+            {entities.map((entity) => (
+              <option key={entity.entityId} value={entity.entityId}>
+                {entity.name}
+              </option>
+            ))}
+          </select>
+        </form>
       </div>
       <nav className="flex gap-1 overflow-x-auto px-2 pb-3 md:block md:space-y-1 md:px-3">
         {links.map(([href, label]) => {

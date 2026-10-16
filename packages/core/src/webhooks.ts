@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { db, webhookDeliveries, webhookEndpoints } from "@adel/db";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Tx } from "./db";
 import { AppError } from "./errors";
@@ -24,8 +24,11 @@ export function signWebhook(secret: string, timestamp: number, body: string) {
   return createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
 }
 
-export async function emitEvent(tx: Tx, event: WebhookEvent, data: Record<string, unknown>) {
-  const hooks = await tx.select().from(webhookEndpoints).where(eq(webhookEndpoints.active, true));
+export async function emitEvent(tx: Tx, event: WebhookEvent, data: Record<string, unknown>, entityId: string) {
+  const hooks = await tx
+    .select()
+    .from(webhookEndpoints)
+    .where(and(eq(webhookEndpoints.active, true), eq(webhookEndpoints.entityId, entityId)));
   const payload = {
     id: randomUUID(),
     type: event,
@@ -126,7 +129,7 @@ function publicEndpoint(row: typeof webhookEndpoints.$inferSelect) {
 
 export async function listWebhookEndpoints(actor: Actor) {
   assertOffice(actor);
-  const rows = await db.select().from(webhookEndpoints).orderBy(desc(webhookEndpoints.createdAt));
+  const rows = await db.select().from(webhookEndpoints).where(eq(webhookEndpoints.entityId, actor.entityId)).orderBy(desc(webhookEndpoints.createdAt));
   return { data: rows.map(publicEndpoint) };
 }
 
@@ -144,6 +147,7 @@ export async function createWebhookEndpoint(actor: Actor, input: unknown) {
   const [row] = await db
     .insert(webhookEndpoints)
     .values({
+      entityId: actor.entityId,
       url: data.url,
       description: data.description ?? null,
       events: data.events,
@@ -158,7 +162,7 @@ export async function disableWebhookEndpoint(actor: Actor, id: string) {
   const [row] = await db
     .update(webhookEndpoints)
     .set({ active: false })
-    .where(eq(webhookEndpoints.id, id))
+    .where(and(eq(webhookEndpoints.id, id), eq(webhookEndpoints.entityId, actor.entityId)))
     .returning();
   if (!row) throw new AppError(404, "Webhook endpoint not found.", "not_found");
   return { data: publicEndpoint(row) };
@@ -166,7 +170,7 @@ export async function disableWebhookEndpoint(actor: Actor, id: string) {
 
 export async function listWebhookDeliveries(actor: Actor, endpointId: string) {
   assertOffice(actor);
-  const [endpoint] = await db.select().from(webhookEndpoints).where(eq(webhookEndpoints.id, endpointId));
+  const [endpoint] = await db.select().from(webhookEndpoints).where(and(eq(webhookEndpoints.id, endpointId), eq(webhookEndpoints.entityId, actor.entityId)));
   if (!endpoint) throw new AppError(404, "Webhook endpoint not found.", "not_found");
   const rows = await db
     .select({

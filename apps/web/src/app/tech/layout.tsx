@@ -1,5 +1,5 @@
 import { LocationReporter } from "@/components/location-reporter";
-import { logoutAction } from "@/server/actions";
+import { logoutAction, switchEntityAction } from "@/server/actions";
 import { requireUser } from "@/server/session";
 import Link from "next/link";
 
@@ -14,6 +14,18 @@ export default async function TechLayout({ children }: { children: React.ReactNo
         </Link>
         <div className="text-right text-xs">
           <p>{actor.name}</p>
+          <form action={switchEntityAction} className="mt-1 flex justify-end gap-1">
+            <select name="entityId" defaultValue={actor.entityId} className="max-w-36 rounded bg-[#f6f1e6] px-1 text-pine" aria-label="Company">
+              {actor.entities.map((entity) => (
+                <option key={entity.entityId} value={entity.entityId}>
+                  {entity.name}
+                </option>
+              ))}
+            </select>
+            <button className="text-[#d7c7ae]" type="submit">
+              Use
+            </button>
+          </form>
           {actor.role !== "tech" ? (
             <Link className="underline" href="/">
               Office

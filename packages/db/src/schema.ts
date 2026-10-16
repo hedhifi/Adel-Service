@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   doublePrecision,
   index,
   integer,
@@ -7,8 +8,10 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -38,15 +41,33 @@ export type FormItem = { id: string; label: string; required: boolean };
 export type FormResponse = { itemId: string; checked: boolean; note: string; rawNote?: string };
 
 /**
- * Adel Electric, LLC is one company. Adel Electric and HED are brands (divisions)
- * on the same customers, jobs, and invoices — not separate tenants.
+ * Adel Electric and Service Contracts share this database. Each business row
+ * belongs to one entity. Brands are divisions inside that entity.
  */
-export const brands = pgTable("brands", {
+export const entities = pgTable("entities", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  taxRateBps: integer("tax_rate_bps").notNull().default(700),
+  taxLabel: text("tax_label").notNull().default("Estimated Florida sales tax"),
+  stripeAccountId: text("stripe_account_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const brands = pgTable(
+  "brands",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("brands_entity_slug_unique").on(table.entityId, table.slug)],
+);
 
 export const companySettings = pgTable("company_settings", {
   id: text("id").primaryKey().default("default"),
@@ -75,6 +96,20 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const entityMemberships = pgTable(
+  "entity_memberships",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id, { onDelete: "cascade" }),
+    role: userRole("role").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.entityId] })],
+);
+
 export const sessions = pgTable(
   "sessions",
   {
@@ -82,6 +117,9 @@ export const sessions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    activeEntityId: uuid("active_entity_id")
+      .notNull()
+      .references(() => entities.id),
     tokenHash: text("token_hash").notNull().unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -93,6 +131,9 @@ export const customers = pgTable(
   "customers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
     brandId: uuid("brand_id")
       .notNull()
       .references(() => brands.id),
@@ -110,6 +151,9 @@ export const properties = pgTable(
   "properties",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
@@ -131,6 +175,9 @@ export const requests = pgTable(
   "requests",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id),
@@ -155,7 +202,10 @@ export const quotes = pgTable(
   "quotes",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    number: integer("number").notNull().unique(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    number: integer("number").notNull(),
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id),
@@ -180,7 +230,7 @@ export const quotes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("quotes_status_idx").on(table.status)],
+  (table) => [index("quotes_status_idx").on(table.status), unique("quotes_entity_number_unique").on(table.entityId, table.number)],
 );
 
 export const quoteLineItems = pgTable(
@@ -204,7 +254,10 @@ export const jobs = pgTable(
   "jobs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    number: integer("number").notNull().unique(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    number: integer("number").notNull(),
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id),
@@ -221,13 +274,16 @@ export const jobs = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("jobs_status_idx").on(table.status)],
+  (table) => [index("jobs_status_idx").on(table.status), unique("jobs_entity_number_unique").on(table.entityId, table.number)],
 );
 
 export const visits = pgTable(
   "visits",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
     jobId: uuid("job_id")
       .notNull()
       .references(() => jobs.id, { onDelete: "cascade" }),
@@ -280,6 +336,9 @@ export const visitPhotos = pgTable("visit_photos", {
 
 export const formTemplates = pgTable("form_templates", {
   id: uuid("id").primaryKey().defaultRandom(),
+  entityId: uuid("entity_id")
+    .notNull()
+    .references(() => entities.id),
   brandId: uuid("brand_id").references(() => brands.id),
   name: text("name").notNull(),
   items: jsonb("items").$type<FormItem[]>().notNull(),
@@ -316,7 +375,10 @@ export const invoices = pgTable(
   "invoices",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    number: integer("number").notNull().unique(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    number: integer("number").notNull(),
     jobId: uuid("job_id").references(() => jobs.id),
     customerId: uuid("customer_id")
       .notNull()
@@ -332,7 +394,11 @@ export const invoices = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("invoices_status_idx").on(table.status), index("invoices_job_idx").on(table.jobId)],
+  (table) => [
+    index("invoices_status_idx").on(table.status),
+    index("invoices_job_idx").on(table.jobId),
+    unique("invoices_entity_number_unique").on(table.entityId, table.number),
+  ],
 );
 
 export const invoiceLineItems = pgTable(
@@ -373,6 +439,9 @@ export const payments = pgTable(
 
 export const apiTokens = pgTable("api_tokens", {
   id: uuid("id").primaryKey().defaultRandom(),
+  entityId: uuid("entity_id")
+    .notNull()
+    .references(() => entities.id),
   name: text("name").notNull(),
   tokenHash: text("token_hash").notNull().unique(),
   tokenPrefix: text("token_prefix").notNull(),
@@ -386,6 +455,9 @@ export const apiTokens = pgTable("api_tokens", {
 
 export const webhookEndpoints = pgTable("webhook_endpoints", {
   id: uuid("id").primaryKey().defaultRandom(),
+  entityId: uuid("entity_id")
+    .notNull()
+    .references(() => entities.id),
   url: text("url").notNull(),
   secret: text("secret").notNull(),
   events: text("events").array().notNull(),
@@ -498,7 +570,61 @@ export const notifications = pgTable(
   (table) => [index("notifications_user_idx").on(table.userId, table.createdAt)],
 );
 
-export const counters = pgTable("counters", {
-  name: text("name").primaryKey(),
-  value: integer("value").notNull(),
-});
+export const counters = pgTable(
+  "counters",
+  {
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    name: text("name").notNull(),
+    value: integer("value").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.entityId, table.name] })],
+);
+
+export const contractStatus = pgEnum("contract_status", ["draft", "active", "ended"]);
+
+export const contracts = pgTable(
+  "contracts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => properties.id),
+    startsOn: date("starts_on").notNull(),
+    endsOn: date("ends_on"),
+    status: contractStatus("status").notNull().default("draft"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("contracts_entity_idx").on(table.entityId)],
+);
+
+/**
+ * The only cross-entity reference. Record ids are not foreign keys, so either
+ * entity can be exported without the other.
+ */
+export const entityLinks = pgTable(
+  "entity_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(),
+    fromEntityId: uuid("from_entity_id")
+      .notNull()
+      .references(() => entities.id),
+    fromRecordId: uuid("from_record_id").notNull(),
+    toEntityId: uuid("to_entity_id")
+      .notNull()
+      .references(() => entities.id),
+    toRecordId: uuid("to_record_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("entity_links_from_idx").on(table.fromEntityId), index("entity_links_to_idx").on(table.toEntityId)],
+);

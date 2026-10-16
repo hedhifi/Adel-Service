@@ -29,6 +29,13 @@
       "when": 1760668000000,
       "tag": "0003_location",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1760672000000,
+      "tag": "0004_entities",
+      "breakpoints": true
     }
   ]
 }
