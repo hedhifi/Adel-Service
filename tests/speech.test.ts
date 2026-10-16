@@ -1,7 +1,9 @@
-import { db, speechTerms } from "@adel/db";
+import { customers, db, jobs, properties, speechTerms, visits } from "@adel/db";
 import {
   AppError,
+  NOT_TRANSLATED,
   activeSpeechPhrases,
+  addVisitNote,
   buildSpeechGrammar,
   cleanupInstructions,
   createCustomer,
@@ -9,7 +11,12 @@ import {
   deleteSpeechTerm,
   finishDictation,
   fuzzyCorrect,
+  getDictationLanguage,
+  getVisit,
   recognitionErrorKind,
+  recognitionLanguage,
+  resolveDictationLanguage,
+  setDictationLanguage,
   suggestSpeechTerm,
   updateSpeechTerm,
   voiceAvailability,
@@ -104,5 +111,75 @@ describe("voice dictation", () => {
     const rows = await db.select().from(speechTerms);
     expect(rows.some((row) => row.phrase === customer.data.name)).toBe(false);
     expect(await activeSpeechPhrases()).toContain("Camille Calder");
+  });
+
+  it("keeps a saved language default separate from the session toggle and recognizes Spanish as es-US", async () => {
+    const { tech } = await seedCompany();
+    expect(await getDictationLanguage(tech.id)).toBe("en");
+    expect(resolveDictationLanguage("en", null)).toBe("en");
+    expect(resolveDictationLanguage("en", "es")).toBe("es");
+    expect(await getDictationLanguage(tech.id)).toBe("en");
+    await setDictationLanguage(tech, { language: "es" });
+    expect(await getDictationLanguage(tech.id)).toBe("es");
+    expect(resolveDictationLanguage("es", "en")).toBe("en");
+    expect(await getDictationLanguage(tech.id)).toBe("es");
+    expect(recognitionLanguage("es")).toBe("es-US");
+    expect(recognitionLanguage("en")).toBe("en-US");
+  });
+
+  it("asks the cleanup model to translate Spanish without inventing facts or changing numbers", () => {
+    const instructions = cleanupInstructions(["Crestron", "Lutron", "Camille Calder"], "es");
+    expect(instructions).toContain("Translate it into English");
+    expect(instructions).toContain("Do not invent facts.");
+    expect(instructions).toContain("Do not change numbers, part numbers, or measurements.");
+    expect(instructions).toContain("Crestron");
+    expect(instructions).toContain("Lutron");
+    expect(instructions).toContain("Camille Calder");
+    expect(instructions).toContain("exactly as spelled");
+  });
+
+  it("keeps raw Spanish and marks it not translated when no API key is set", async () => {
+    delete process.env.SPEECH_CLEANUP_API_KEY;
+    process.env.SPEECH_CLEANUP = "on";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no network"));
+    const spanish = "cambié el teclado Crestron y corrí 40 pies de cable";
+    const result = await finishDictation(spanish, phrases, "es");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.mode).toBe("passthrough");
+    expect(result.translated).toBe(false);
+    expect(result.language).toBe("es");
+    expect(result.raw).toBe(spanish);
+    expect(result.text).toBe(spanish);
+    expect(NOT_TRANSLATED).toBe("Not translated");
+  });
+
+  it("stores the source language and the raw Spanish on the note", async () => {
+    const { adel, tech } = await seedCompany();
+    const [customer] = await db.insert(customers).values({ brandId: adel.id, name: "Camille Calder" }).returning();
+    const [property] = await db
+      .insert(properties)
+      .values({ customerId: customer.id, label: "House", line1: "1 Main", city: "Naples", postalCode: "34102" })
+      .returning();
+    const [job] = await db
+      .insert(jobs)
+      .values({ number: 9001, customerId: customer.id, propertyId: property.id, brandId: adel.id, title: "Panel", status: "scheduled" })
+      .returning();
+    const start = new Date("2026-10-16T14:00:00.000Z");
+    const [visit] = await db
+      .insert(visits)
+      .values({
+        jobId: job.id,
+        technicianId: tech.id,
+        scheduledStart: start,
+        scheduledEnd: new Date(start.getTime() + 60 * 60 * 1000),
+        status: "scheduled",
+      })
+      .returning();
+    const spanish = "el panel queda a 40 pies";
+    await addVisitNote(tech, visit.id, { body: spanish, rawBody: spanish, sourceLanguage: "es" });
+    const loaded = await getVisit(tech, visit.id);
+    expect(loaded.data.notes[0]?.sourceLanguage).toBe("es");
+    expect(loaded.data.notes[0]?.rawBody).toBe(spanish);
+    expect(loaded.data.notes[0]?.body).toBe(spanish);
   });
 });

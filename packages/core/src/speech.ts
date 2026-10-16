@@ -1,20 +1,24 @@
-import { customers, db, speechTerms } from "@adel/db";
+import { customers, db, speechTerms, users } from "@adel/db";
 import { asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { AppError } from "./errors";
 import { isUniqueViolation, parse } from "./parse";
 import { assertOffice, type Actor } from "./permissions";
-import { cleanupInstructions, fuzzyCorrect } from "./speech-client";
+import { cleanupInstructions, fuzzyCorrect, type DictationLanguage } from "./speech-client";
 
 export {
+  NOT_TRANSLATED,
   buildSpeechGrammar,
   cleanupInstructions,
   fuzzyCorrect,
   levenshtein,
   recognitionErrorKind,
+  recognitionLanguage,
+  resolveDictationLanguage,
   voiceAvailability,
   voiceStatusMessage,
 } from "./speech-client";
+export type { DictationLanguage } from "./speech-client";
 
 const phraseSchema = z.string().trim().min(1).max(80);
 
@@ -73,22 +77,46 @@ export async function activeSpeechPhrases() {
   return [...new Set([...terms.map((row) => row.phrase), ...names.map((row) => row.name)])];
 }
 
-export async function finishDictation(transcript: string, phrases: string[]) {
+function asLanguage(value: unknown): DictationLanguage {
+  return value === "es" ? "es" : "en";
+}
+
+function untranslated(raw: string) {
+  return { text: raw, raw, mode: "passthrough" as const, language: "es" as const, translated: false as const };
+}
+
+export async function finishDictation(transcript: string, phrases: string[], language: DictationLanguage = "en") {
   const raw = transcript.trim();
   if (!raw) throw new AppError(400, "Nothing was heard.", "invalid_input");
-  const corrected = fuzzyCorrect(raw, phrases);
-  if (!cleanupConfigured()) return { text: corrected, raw, mode: "passthrough" as const };
+  if (language === "es" && !cleanupConfigured()) return untranslated(raw);
+  const source = language === "es" ? raw : fuzzyCorrect(raw, phrases);
+  if (!cleanupConfigured()) return { text: source, raw, mode: "passthrough" as const, language, translated: true as const };
   try {
-    const cleaned = await completeWithProvider(cleanupInstructions(phrases), corrected);
-    return { text: cleaned || corrected, raw, mode: "model" as const };
+    const cleaned = await completeWithProvider(cleanupInstructions(phrases, language), source);
+    const english = fuzzyCorrect(cleaned || source, phrases);
+    if (language === "es" && !cleaned) return untranslated(raw);
+    return { text: english, raw, mode: "model" as const, language, translated: true as const };
   } catch (err) {
     console.error("speech cleanup failed", err);
-    return { text: corrected, raw, mode: "passthrough" as const };
+    if (language === "es") return untranslated(raw);
+    return { text: source, raw, mode: "passthrough" as const, language, translated: true as const };
   }
 }
 
-export async function prepareDictation(transcript: string) {
-  return finishDictation(transcript, await activeSpeechPhrases());
+export async function prepareDictation(transcript: string, language: unknown = "en") {
+  return finishDictation(transcript, await activeSpeechPhrases(), asLanguage(language));
+}
+
+export async function getDictationLanguage(userId: string): Promise<DictationLanguage> {
+  const [row] = await db.select({ dictationLanguage: users.dictationLanguage }).from(users).where(eq(users.id, userId));
+  return row?.dictationLanguage === "es" ? "es" : "en";
+}
+
+export async function setDictationLanguage(actor: Actor, input: unknown) {
+  const data = parse(z.object({ language: z.enum(["en", "es"]) }), input);
+  const [row] = await db.update(users).set({ dictationLanguage: data.language }).where(eq(users.id, actor.id)).returning();
+  if (!row) throw new AppError(404, "Person not found.", "not_found");
+  return { data: { language: row.dictationLanguage } };
 }
 
 function publicTerm(row: typeof speechTerms.$inferSelect) {

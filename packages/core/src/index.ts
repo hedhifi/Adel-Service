@@ -87,17 +87,23 @@ export { getDashboard } from "./dashboard";
 export {
   activeSpeechPhrases,
   buildSpeechGrammar,
+  NOT_TRANSLATED,
   cleanupConfigured,
   cleanupInstructions,
   createSpeechTerm,
   deleteSpeechTerm,
   finishDictation,
   fuzzyCorrect,
+  getDictationLanguage,
   listSpeechTerms,
   prepareDictation,
   recognitionErrorKind,
+  recognitionLanguage,
+  resolveDictationLanguage,
+  setDictationLanguage,
   suggestSpeechTerm,
   updateSpeechTerm,
   voiceAvailability,
   voiceStatusMessage,
 } from "./speech";
+export type { DictationLanguage } from "./speech";

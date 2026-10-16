@@ -384,6 +384,7 @@ export async function getVisit(actor: Actor, id: string) {
       id: visitNotes.id,
       body: visitNotes.body,
       rawBody: visitNotes.rawBody,
+      sourceLanguage: visitNotes.sourceLanguage,
       createdAt: visitNotes.createdAt,
       authorName: users.name,
     })
@@ -486,12 +487,19 @@ export async function addVisitNote(actor: Actor, visitId: string, input: unknown
     z.object({
       body: z.string().trim().min(1).max(5000),
       rawBody: z.string().trim().max(5000).optional().nullable(),
+      sourceLanguage: z.enum(["en", "es"]).optional().nullable(),
     }),
     input,
   );
   const [note] = await db
     .insert(visitNotes)
-    .values({ visitId, authorId: actor.id, body: data.body, rawBody: data.rawBody || null })
+    .values({
+      visitId,
+      authorId: actor.id,
+      body: data.body,
+      rawBody: data.rawBody || null,
+      sourceLanguage: data.sourceLanguage || null,
+    })
     .returning();
   return { data: note };
 }

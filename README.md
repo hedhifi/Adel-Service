@@ -110,6 +110,8 @@ If `SPEECH_CLEANUP_API_KEY` is missing, still a placeholder that contains `repla
 
 A technician can suggest a spelling from the visit. It stays out of dictation until office or admin accepts it. Office and admin can add, edit, and remove terms in settings, the REST API, and the MCP tools `list_terms`, `create_term`, `update_term`, `delete_term`, and `suggest_term`.
 
+Each person has a dictation default of English or Spanish. The Dictate control also has an English / Spanish switch for this browser session; that switch does not change the saved default until they choose Save as my default. Spanish is recognized as `es-US`. English stays `en-US`. When a cleanup key is configured, Spanish is translated into English in the same pass that cleans the note. The prompt still forbids invented facts and changed numbers, and dictionary spellings apply to the English result. Show original keeps the Spanish transcript. The note stores that source language. With no cleanup key, the field keeps the Spanish words and shows Not translated. It is not presented as an English translation.
+
 ## Assumptions (v1)
 
 - Adel Electric and HED are brands on one company, not two tenants.

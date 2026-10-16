@@ -67,17 +67,38 @@ export function fuzzyCorrect(text: string, phrases: string[]) {
     .trim();
 }
 
-export function cleanupInstructions(phrases: string[]) {
+export type DictationLanguage = "en" | "es";
+
+export const NOT_TRANSLATED = "Not translated";
+
+export function recognitionLanguage(language: DictationLanguage) {
+  return language === "es" ? "es-US" : "en-US";
+}
+
+/** Session choice wins for this browser session. It does not change the saved default. */
+export function resolveDictationLanguage(defaultLanguage: DictationLanguage, sessionLanguage: DictationLanguage | null) {
+  return sessionLanguage ?? defaultLanguage;
+}
+
+export function cleanupInstructions(phrases: string[], language: DictationLanguage = "en") {
   const list = phrases.length ? phrases.join(", ") : "(none)";
-  return [
+  const lines = [
     "Clean this field note for an electrical and residential AV crew.",
     "Remove filler words, fix grammar, and tighten the phrasing into a clean written note.",
     "Do not invent facts.",
     "Do not change numbers, part numbers, or measurements.",
     "Preserve these spellings exactly and never correct them away:",
     list,
+    "Brand names, part names, and numbers stay exactly as spelled in that dictionary.",
     "Return only the cleaned note, with no preamble.",
-  ].join("\n");
+  ];
+  if (language === "es") {
+    lines.unshift(
+      "The note was dictated in Spanish.",
+      "Translate it into English, the working language of this app, while you clean it.",
+    );
+  }
+  return lines.join("\n");
 }
 
 export function buildSpeechGrammar(phrases: string[]) {

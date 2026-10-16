@@ -63,6 +63,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: userRole("role").notNull(),
   phone: text("phone"),
+  dictationLanguage: text("dictation_language").notNull().default("en"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -247,6 +248,7 @@ export const visitNotes = pgTable("visit_notes", {
     .references(() => users.id),
   body: text("body").notNull(),
   rawBody: text("raw_body"),
+  sourceLanguage: text("source_language"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

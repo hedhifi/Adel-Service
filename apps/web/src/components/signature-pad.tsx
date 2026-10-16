@@ -4,7 +4,7 @@ import { VoiceField } from "@/components/voice-field";
 import { buttonClass, ghostClass } from "@/components/ui";
 import { useRef } from "react";
 
-export function SignaturePad({ phrases }: { phrases: string[] }) {
+export function SignaturePad({ phrases, defaultLanguage = "en" }: { phrases: string[]; defaultLanguage?: "en" | "es" }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hiddenRef = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
@@ -52,7 +52,7 @@ export function SignaturePad({ phrases }: { phrases: string[] }) {
 
   return (
     <div className="space-y-3">
-      <VoiceField name="signedByName" rawName="signedByRaw" phrases={phrases} required placeholder="Customer name" label="Signed by" />
+      <VoiceField name="signedByName" rawName="signedByRaw" languageName="signedByLanguage" phrases={phrases} defaultLanguage={defaultLanguage} required placeholder="Customer name" label="Signed by" />
       <canvas
         ref={canvasRef}
         width={640}

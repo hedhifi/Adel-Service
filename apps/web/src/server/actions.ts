@@ -40,6 +40,7 @@ import {
   voidInvoice,
   createSpeechTerm,
   deleteSpeechTerm,
+  setDictationLanguage,
   suggestSpeechTerm,
   updateSpeechTerm,
 } from "@adel/core";
@@ -347,7 +348,12 @@ export async function noteAction(formData: FormData) {
   const actor = await requireUser();
   const id = text(formData, "id");
   try {
-    await addVisitNote(actor, id, { body: text(formData, "body"), rawBody: text(formData, "rawBody") || null });
+    const sourceLanguage = text(formData, "sourceLanguage");
+    await addVisitNote(actor, id, {
+      body: text(formData, "body"),
+      rawBody: text(formData, "rawBody") || null,
+      sourceLanguage: sourceLanguage === "es" || sourceLanguage === "en" ? sourceLanguage : null,
+    });
     redirect(`/tech/visits/${id}#notes`);
   } catch (err) {
     if (isRedirect(err)) throw err;
@@ -622,6 +628,11 @@ export async function deleteTermAction(formData: FormData) {
     if (isRedirect(err)) throw err;
     bail("/settings/terms", err);
   }
+}
+
+export async function setDictationLanguageAction(language: "en" | "es") {
+  const actor = await requireUser();
+  await setDictationLanguage(actor, { language });
 }
 
 export async function suggestTermAction(formData: FormData) {

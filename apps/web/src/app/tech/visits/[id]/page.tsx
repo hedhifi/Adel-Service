@@ -15,7 +15,7 @@ import {
   visitStatusAction,
 } from "@/server/actions";
 import { requireUser } from "@/server/session";
-import { AppError, activeSpeechPhrases, getCompanySettings, getVisit, listFormTemplates, stripePublishableKey } from "@adel/core";
+import { AppError, activeSpeechPhrases, getCompanySettings, getDictationLanguage, getVisit, listFormTemplates, stripePublishableKey } from "@adel/core";
 
 export default async function VisitPage({
   params,
@@ -27,11 +27,12 @@ export default async function VisitPage({
   const actor = await requireUser();
   const { id } = await params;
   const query = await searchParams;
-  const [{ data }, settings, forms, phrases] = await Promise.all([
+  const [{ data }, settings, forms, phrases, dictationLanguage] = await Promise.all([
     getVisit(actor, id),
     getCompanySettings(),
     listFormTemplates(actor),
     activeSpeechPhrases(),
+    getDictationLanguage(actor.id),
   ]);
   let publishable: string | null = null;
   try {
@@ -88,7 +89,7 @@ export default async function VisitPage({
         <form action={clockAction} className="space-y-2">
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="action" value={openClock ? "out" : "in"} />
-          <VoiceField name="note" rawName="rawNote" phrases={phrases} multiline rows={2} placeholder="What was the time for?" label="Time note" />
+          <VoiceField name="note" rawName="rawNote" phrases={phrases} defaultLanguage={dictationLanguage} multiline rows={2} placeholder="What was the time for?" label="Time note" />
           <button className={buttonClass} type="submit">
             {openClock ? "Clock out" : "Clock in"}
           </button>
@@ -99,7 +100,7 @@ export default async function VisitPage({
         <ul className="space-y-2 text-sm">
           {data.notes.map((note) => (
             <li key={note.id} className="rounded-md border border-line bg-card px-3 py-2">
-              <DictatedText text={note.body} raw={note.rawBody} />
+              <DictatedText text={note.body} raw={note.rawBody} sourceLanguage={note.sourceLanguage} />
               <p className="text-xs text-muted">
                 {note.authorName} · {when(note.createdAt, settings.timeZone)}
               </p>
@@ -108,7 +109,7 @@ export default async function VisitPage({
         </ul>
         <form action={noteAction} className="space-y-2">
           <input type="hidden" name="id" value={id} />
-          <VoiceField name="body" rawName="rawBody" phrases={phrases} multiline required placeholder="What did you find?" label="Note" />
+          <VoiceField name="body" rawName="rawBody" phrases={phrases} defaultLanguage={dictationLanguage} saveDefault multiline required placeholder="What did you find?" label="Note" />
           <button className={ghostClass} type="submit">
             Add note
           </button>
@@ -132,7 +133,7 @@ export default async function VisitPage({
         <form action={photoAction} className="space-y-2">
           <input type="hidden" name="id" value={id} />
           <input className={inputClass} name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
-          <VoiceField name="caption" rawName="rawCaption" phrases={phrases} placeholder="Caption" label="Caption" />
+          <VoiceField name="caption" rawName="rawCaption" phrases={phrases} defaultLanguage={dictationLanguage} languageName="captionLanguage" placeholder="Caption" label="Caption" />
           <button className={ghostClass} type="submit">
             Upload photo
           </button>
@@ -160,6 +161,8 @@ export default async function VisitPage({
                       name={`note__${item.id}`}
                       rawName={`raw__${item.id}`}
                       phrases={phrases}
+                      defaultLanguage={dictationLanguage}
+                      languageName={`lang__${item.id}`}
                       placeholder="Note"
                       defaultValue={response?.note ?? ""}
                       defaultRaw={response?.rawNote ?? ""}
@@ -204,7 +207,7 @@ export default async function VisitPage({
         {data.status !== "completed" && data.status !== "canceled" ? (
           <form action={signatureAction}>
             <input type="hidden" name="id" value={id} />
-            <SignaturePad phrases={phrases} />
+            <SignaturePad phrases={phrases} defaultLanguage={dictationLanguage} />
           </form>
         ) : null}
       </section>
