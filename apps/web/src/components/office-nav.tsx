@@ -33,7 +33,7 @@ export function OfficeNav({
       <div className="flex items-center justify-between gap-3 px-4 py-4 md:block">
         <Link href="/" className="block">
           <span className="font-serif text-xl leading-none">Adel Service</span>
-          <span className="mt-1 block text-xs text-[#d7c7ae]">Adel Electric · HED</span>
+          <span className="mt-1 block text-xs text-[#d7c7ae]">Adel Electric</span>
         </Link>
         <p className="text-xs md:mt-4">
           {name}

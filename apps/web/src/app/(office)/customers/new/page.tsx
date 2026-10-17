@@ -23,15 +23,19 @@ export default async function NewCustomerPage({ searchParams }: { searchParams: 
             <input className={inputClass} name="phone" />
           </Field>
         </div>
-        <Field label="Brand">
-          <select className={inputClass} name="brandId" required>
-            {brands.map((brand) => (
-              <option key={brand.id} value={brand.id}>
-                {brand.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {brands.length === 1 ? (
+          <input type="hidden" name="brandId" value={brands[0]?.id} />
+        ) : (
+          <Field label="Brand">
+            <select className={inputClass} name="brandId" required>
+              {brands.map((brand) => (
+                <option key={brand.id} value={brand.id}>
+                  {brand.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Notes">
           <textarea className={inputClass} name="notes" rows={3} />
         </Field>

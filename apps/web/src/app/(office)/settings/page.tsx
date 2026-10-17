@@ -15,7 +15,7 @@ export default async function SettingsPage({
   const entity = await getEntity(actor);
   return (
     <div className="max-w-2xl space-y-6">
-      <PageHeader title="Settings" lede="You are working in one company. Adel Electric and HED are brands inside Adel Electric. Service Contracts is a separate company on this desk." />
+      <PageHeader title="Settings" lede="You are working in one company. Service Contracts keeps its own books on this desk. Adel Electric's books stay separate." />
       <Flash error={query.error} notice={query.notice} forbidden={query.forbidden} />
       <div className="flex flex-wrap gap-3 text-sm">
         <Link className="font-semibold text-pine" href="/settings/team">

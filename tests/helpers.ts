@@ -43,7 +43,6 @@ export async function seedCompany() {
     { id: SERVICE_ENTITY_ID, name: "Service Contracts", slug: "service-contracts", taxRateBps: 700, taxLabel: "Estimated Florida sales tax" },
   ]);
   const [adel] = await db.insert(brands).values({ entityId: ADEL_ENTITY_ID, name: "Adel Electric", slug: "adel-electric" }).returning();
-  const [hed] = await db.insert(brands).values({ entityId: ADEL_ENTITY_ID, name: "HED", slug: "hed" }).returning();
   await db.insert(brands).values({ id: SERVICE_BRAND_ID, entityId: SERVICE_ENTITY_ID, name: "Service Contracts", slug: "service-contracts" });
   const passwordHash = await bcrypt.hash(PASSWORD, 4);
   const [admin] = await db
@@ -70,7 +69,6 @@ export async function seedCompany() {
   );
   return {
     adel,
-    hed,
     admin: asActor(admin),
     office: asActor(office),
     tech: asActor(tech),

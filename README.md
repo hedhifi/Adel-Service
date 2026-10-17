@@ -1,6 +1,6 @@
 # Adel Service
 
-Internal field-service desk for **Adel Electric, LLC** and its **HED** division. One company, two brands. Office staff schedule work. Technicians run the day from a phone. The same app exposes a REST API and a small MCP server so an assistant can work with the same records.
+Internal field-service desk for **Adel Electric, LLC**. Office staff schedule work. Technicians run the day from a phone. The same app exposes a REST API and a small MCP server so an assistant can work with the same records.
 
 This is not a product for other contractors.
 
@@ -123,7 +123,7 @@ Arrival inside 150 meters can set the visit to on site. Leaving records a depart
 
 ## Assumptions (v1)
 
-- Adel Electric and Service Contracts are two companies in one database. Adel Electric and HED are brands inside Adel Electric. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- Adel Electric and Service Contracts are two companies in one database. They share the servers, the office desk, and the tech phone app. Their books stay separate. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - Default tax is 7% (700 basis points), labeled as an estimate. Materials are taxable. Labor is not. The rate is snapshotted onto each estimate and invoice.
 - The shop clock is `America/New_York`. `America/Chicago` is the other option in settings.
 - The office can approve a draft or a sent estimate in person. A customer can approve or decline only from the link, and only while the estimate is sent and inside 30 days.

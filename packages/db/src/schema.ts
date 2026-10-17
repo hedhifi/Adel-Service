@@ -42,7 +42,7 @@ export type FormResponse = { itemId: string; checked: boolean; note: string; raw
 
 /**
  * Adel Electric and Service Contracts share this database. Each business row
- * belongs to one entity. Brands are divisions inside that entity.
+ * belongs to one entity. A brand is the name that entity prints on its estimates.
  */
 export const entities = pgTable("entities", {
   id: uuid("id").primaryKey().defaultRandom(),

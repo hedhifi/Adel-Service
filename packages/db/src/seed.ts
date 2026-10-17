@@ -33,12 +33,10 @@ const {
   invoiceLineItems,
   invoices,
   jobs,
-  payments,
   properties,
   quoteLineItems,
   quotes,
   requests,
-  timeEntries,
   users,
   visitForms,
   deviceTokens,
@@ -76,7 +74,6 @@ await db.insert(entities).values([
 ]);
 
 const [adel] = await db.insert(brands).values({ entityId: ADEL_ENTITY_ID, name: "Adel Electric", slug: "adel-electric" }).returning();
-const [hed] = await db.insert(brands).values({ entityId: ADEL_ENTITY_ID, name: "HED", slug: "hed" }).returning();
 await db.insert(brands).values({ id: SERVICE_BRAND_ID, entityId: SERVICE_ENTITY_ID, name: "Service Contracts", slug: "service-contracts" });
 
 const [alan] = await db
@@ -180,23 +177,6 @@ const anya = await addCustomer({
   },
 });
 
-const iyer = await addCustomer({
-  brandId: hed.id,
-  name: "Rohan and Meera Iyer",
-  email: "meera.iyer@example.net",
-  phone: "813-555-2160",
-  notes: "HED theater and shade package. They travel on weekends.",
-  property: {
-    label: "Bayshore residence",
-    line1: "1200 S Ocean Blvd",
-    city: "Tampa",
-    postalCode: "33606",
-    accessNotes: "Rack is in the upstairs closet. House manager Luis can let you in after 12.",
-    latitude: 27.921,
-    longitude: -82.481,
-  },
-});
-
 const marcus = await addCustomer({
   brandId: adel.id,
   name: "Marcus Bell",
@@ -211,23 +191,6 @@ const marcus = await addCustomer({
     accessNotes: "Use the service alley. Irrigation timer is in the garage.",
     latitude: 26.705,
     longitude: -80.037,
-  },
-});
-
-const lila = await addCustomer({
-  brandId: hed.id,
-  name: "Lila Navarro",
-  email: "lila.navarro@example.net",
-  phone: "954-555-2133",
-  notes: "Rack cleanup after a remodel. Paid by check.",
-  property: {
-    label: "Las Olas condo",
-    line1: "900 E Las Olas Blvd",
-    city: "Fort Lauderdale",
-    postalCode: "33301",
-    accessNotes: "Concierge has the service elevator code. Unit 1402.",
-    latitude: 26.119,
-    longitude: -80.137,
   },
 });
 
@@ -339,34 +302,6 @@ const marcusQuote = await addApprovedQuote({
   ],
 });
 
-const lilaQuote = await addApprovedQuote({
-  number: 1004,
-  customerId: lila.customer.id,
-  propertyId: lila.property.id,
-  brandId: hed.id,
-  title: "Rack cleanup",
-  notes: "Re-dress the rack, label both ends, and confirm the Apple TV and shades processor.",
-  approvedByName: "Lila Navarro",
-  lines: [
-    { kind: "labor", description: "Rack service", quantity: "3.00", unitAmountCents: 16500, taxable: false },
-    { kind: "material", description: "Velcro, labels, and patch cables", quantity: "1.00", unitAmountCents: 8500, taxable: true },
-  ],
-});
-
-const iyerQuote = await addApprovedQuote({
-  number: 1005,
-  customerId: iyer.customer.id,
-  propertyId: iyer.property.id,
-  brandId: hed.id,
-  title: "Theater commissioning and shades",
-  notes: "Finish programming the theater and bring the shade gateway back online.",
-  approvedByName: "Meera Iyer",
-  lines: [
-    { kind: "labor", description: "Commissioning visit", quantity: "4.00", unitAmountCents: 18500, taxable: false },
-    { kind: "material", description: "Shade gateway replacement", quantity: "1.00", unitAmountCents: 42000, taxable: true },
-  ],
-});
-
 async function addJob(input: {
   number: number;
   quoteId: string;
@@ -391,18 +326,8 @@ const anyaJob = await addJob({
   instructions: "Pull the permit card from the truck book. Confirm the charger model before opening the box.",
   status: "scheduled",
 });
-const iyerJob = await addJob({
-  number: 1002,
-  quoteId: iyerQuote.id,
-  customerId: iyer.customer.id,
-  propertyId: iyer.property.id,
-  brandId: hed.id,
-  title: iyerQuote.title,
-  instructions: "Shade gateway was offline last visit. Bring a spare. Don't leave the rack fan unplugged.",
-  status: "in_progress",
-});
 const marcusJob = await addJob({
-  number: 1003,
+  number: 1002,
   quoteId: marcusQuote.id,
   customerId: marcus.customer.id,
   propertyId: marcus.property.id,
@@ -411,17 +336,6 @@ const marcusJob = await addJob({
   instructions: "Customer wants the path lights at 2700K. Photo the transformer nameplate.",
   status: "completed",
 });
-const lilaJob = await addJob({
-  number: 1004,
-  quoteId: lilaQuote.id,
-  customerId: lila.customer.id,
-  propertyId: lila.property.id,
-  brandId: hed.id,
-  title: lilaQuote.title,
-  instructions: "Concierge will escort you up.",
-  status: "completed",
-});
-
 const [electricalForm] = await db
   .insert(formTemplates)
   .values({
@@ -437,22 +351,6 @@ const [electricalForm] = await db
     ],
   })
   .returning();
-const [avForm] = await db
-  .insert(formTemplates)
-  .values({
-    entityId: ADEL_ENTITY_ID,
-    brandId: hed.id,
-    name: "AV commissioning",
-    items: [
-      { id: "displays", label: "Displays power on and switch sources", required: true },
-      { id: "zones", label: "Audio zones labeled in the control app", required: true },
-      { id: "temp", label: "Rack temperatures in a normal range", required: true },
-      { id: "network", label: "Network gear documented", required: false },
-      { id: "shown", label: "Customer shown how to start the room", required: false },
-    ],
-  })
-  .returning();
-
 const [marcoVisit] = await db
   .insert(visits)
   .values({
@@ -477,39 +375,6 @@ await db.insert(visitNotes).values({
   body: "Meter is on the north wall. Anya asked us to keep the carport clear by 3.",
 });
 
-const [sofiaVisit] = await db
-  .insert(visits)
-  .values({
-    entityId: ADEL_ENTITY_ID,
-    jobId: iyerJob.id,
-    technicianId: sofia.id,
-    scheduledStart: zonedDateTime(today, "13:00", timeZone),
-    scheduledEnd: zonedDateTime(today, "16:30", timeZone),
-    status: "on_site",
-  })
-  .returning();
-await db.insert(visitForms).values({
-  visitId: sofiaVisit.id,
-  templateId: avForm.id,
-  name: avForm.name,
-  items: avForm.items,
-  responses: avForm.items.map((item) => ({
-    itemId: item.id,
-    checked: item.id === "displays",
-    note: item.id === "displays" ? "Both displays came up on the Apple TV." : "",
-  })),
-});
-await db.insert(visitNotes).values({
-  visitId: sofiaVisit.id,
-  authorId: sofia.id,
-  body: "Shade gateway was offline at arrival. Spare is on the truck.",
-});
-await db.insert(timeEntries).values({
-  visitId: sofiaVisit.id,
-  userId: sofia.id,
-  startedAt: zonedDateTime(today, "13:05", timeZone),
-});
-
 const marcoSecret = newSecret("adeldev_");
 const sofiaSecret = newSecret("adeldev_");
 const [marcoDevice] = await db
@@ -522,7 +387,7 @@ const [marcoDevice] = await db
     acknowledgedAt: new Date(),
   })
   .returning();
-const [sofiaDevice] = await db
+await db
   .insert(deviceTokens)
   .values({
     userId: sofia.id,
@@ -530,17 +395,13 @@ const [sofiaDevice] = await db
     tokenHash: hashSecret(sofiaSecret),
     tokenPrefix: sofiaSecret.slice(0, 16),
     acknowledgedAt: new Date(),
-  })
-  .returning();
+  });
 const now = Date.now();
 await db.insert(locationPoints).values([
   { userId: marco.id, deviceTokenId: marcoDevice.id, recordedAt: new Date(now - 28 * 60 * 1000), latitude: 25.9, longitude: -80.31, accuracyMeters: 18, batteryPercent: 74 },
   { userId: marco.id, deviceTokenId: marcoDevice.id, recordedAt: new Date(now - 20 * 60 * 1000), latitude: 25.86, longitude: -80.29, accuracyMeters: 14, batteryPercent: 72 },
   { userId: marco.id, deviceTokenId: marcoDevice.id, recordedAt: new Date(now - 12 * 60 * 1000), latitude: 25.82, longitude: -80.27, accuracyMeters: 12, batteryPercent: 70 },
   { userId: marco.id, deviceTokenId: marcoDevice.id, recordedAt: new Date(now - 4 * 60 * 1000), latitude: 25.79, longitude: -80.262, accuracyMeters: 9, batteryPercent: 68 },
-  { userId: sofia.id, deviceTokenId: sofiaDevice.id, recordedAt: new Date(now - 18 * 60 * 1000), latitude: 27.95, longitude: -82.5, accuracyMeters: 20, batteryPercent: 81 },
-  { userId: sofia.id, deviceTokenId: sofiaDevice.id, recordedAt: new Date(now - 8 * 60 * 1000), latitude: 27.93, longitude: -82.488, accuracyMeters: 11, batteryPercent: 79 },
-  { userId: sofia.id, deviceTokenId: sofiaDevice.id, recordedAt: new Date(now - 2 * 60 * 1000), latitude: 27.921, longitude: -82.481, accuracyMeters: 8, batteryPercent: 78 },
 ]);
 
 await db.insert(visits).values({
@@ -575,38 +436,10 @@ await db.insert(invoiceLineItems).values([
   { invoiceId: marcusInvoice.id, position: 1, kind: "material", description: "Fixtures, transformer, and cable", quantity: "1.00", unitAmountCents: 186000, taxable: true },
 ]);
 
-const [lilaInvoice] = await db
-  .insert(invoices)
-  .values({
-    entityId: ADEL_ENTITY_ID,
-    number: 1002,
-    jobId: lilaJob.id,
-    customerId: lila.customer.id,
-    brandId: hed.id,
-    status: "paid",
-    taxRateBps: 700,
-    issuedAt: new Date("2026-09-18T15:00:00.000Z"),
-    dueAt: new Date("2026-10-03T15:00:00.000Z"),
-  })
-  .returning();
-await db.insert(invoiceLineItems).values([
-  { invoiceId: lilaInvoice.id, position: 0, kind: "labor", description: "Rack service", quantity: "3.00", unitAmountCents: 16500, taxable: false },
-  { invoiceId: lilaInvoice.id, position: 1, kind: "material", description: "Velcro, labels, and patch cables", quantity: "1.00", unitAmountCents: 8500, taxable: true },
-]);
-await db.insert(payments).values({
-  invoiceId: lilaInvoice.id,
-  amountCents: 58595,
-  status: "succeeded",
-  method: "check",
-  reference: "1044",
-  recordedById: renee.id,
-  receivedAt: new Date("2026-09-20T18:00:00.000Z"),
-});
-
 await db.insert(counters).values([
-  { entityId: ADEL_ENTITY_ID, name: "quote", value: 1005 },
-  { entityId: ADEL_ENTITY_ID, name: "job", value: 1004 },
-  { entityId: ADEL_ENTITY_ID, name: "invoice", value: 1002 },
+  { entityId: ADEL_ENTITY_ID, name: "quote", value: 1003 },
+  { entityId: ADEL_ENTITY_ID, name: "job", value: 1002 },
+  { entityId: ADEL_ENTITY_ID, name: "invoice", value: 1001 },
 ]);
 
 const demoSecret = newSecret("adel_");

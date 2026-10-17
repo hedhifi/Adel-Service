@@ -47,7 +47,7 @@ export const TOOL_NAMES = [
 export function registerTools(server: McpServer) {
   server.registerTool(
     "list_brands",
-    { description: "List Adel Electric and HED brands.", inputSchema: {} },
+    { description: "List brands for the active company.", inputSchema: {} },
     async () => call("GET", "/api/v1/brands"),
   );
   server.registerTool(

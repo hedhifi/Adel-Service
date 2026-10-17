@@ -11,7 +11,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
     <div>
       <PageHeader
         title="Customers"
-        lede={`${total} on file across Adel Electric and HED.`}
+        lede={`${total} on file for this company.`}
         action={
           <Link className={buttonClass} href="/customers/new">
             New customer

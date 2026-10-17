@@ -3,7 +3,7 @@
   "info": {
     "title": "Adel Service API",
     "version": "0.1.0",
-    "description": "Internal HTTP API for Adel Service, the field-service desk used by Adel Electric, LLC\nand its HED division. One company, two brands. Not a multi-tenant product.\n\nAuthenticate with a session cookie (`adel_session`) from `POST /api/auth/login`, or with\n`Authorization: Bearer adel_…` from an API token. Tokens are scoped to a role\n(`admin`, `office`, or `tech`). A technician token can only see visits assigned to that person.\n\nMoney is integer cents. Tax rates are basis points (700 = 7%). Webhook bodies are signed\nwith HMAC-SHA256 over `{timestamp}.{rawBody}` and sent as `X-Adel-Signature: sha256=…`.\n"
+    "description": "Internal HTTP API for Adel Service, the field-service desk for Adel Electric, LLC.\nAdel Electric and Service Contracts keep separate books in one database.\n\nAuthenticate with a session cookie (`adel_session`) from `POST /api/auth/login`, or with\n`Authorization: Bearer adel_…` from an API token. Tokens are scoped to a role\n(`admin`, `office`, or `tech`). A technician token can only see visits assigned to that person.\n\nMoney is integer cents. Tax rates are basis points (700 = 7%). Webhook bodies are signed\nwith HMAC-SHA256 over `{timestamp}.{rawBody}` and sent as `X-Adel-Signature: sha256=…`.\n"
   },
   "servers": [
     {
@@ -165,7 +165,7 @@
         "tags": [
           "Customers"
         ],
-        "summary": "List brands (Adel Electric and HED)",
+        "summary": "List brands for the active company",
         "responses": {
           "200": {
             "description": "Brand list"

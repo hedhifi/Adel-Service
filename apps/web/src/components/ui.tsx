@@ -101,10 +101,9 @@ export function StatusPill({ status }: { status: string }) {
 }
 
 export function BrandChip({ name }: { name: string }) {
-  const hed = name === "HED";
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-semibold ${hed ? "text-[#312e81]" : "text-copper"}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${hed ? "bg-[#312e81]" : "bg-copper"}`} />
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-copper">
+      <span className="h-1.5 w-1.5 rounded-full bg-copper" />
       {name}
     </span>
   );

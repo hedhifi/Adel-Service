@@ -8,7 +8,7 @@ const serif = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", displa
 
 export const metadata: Metadata = {
   title: { default: "Adel Service", template: "%s · Adel Service" },
-  description: "Internal field service for Adel Electric and HED.",
+  description: "Internal field service for Adel Electric.",
   manifest: "/manifest.webmanifest",
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "Adel Service", statusBarStyle: "black-translucent" },

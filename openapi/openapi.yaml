@@ -3,8 +3,8 @@ info:
   title: Adel Service API
   version: 0.1.0
   description: |
-    Internal HTTP API for Adel Service, the field-service desk used by Adel Electric, LLC
-    and its HED division. One company, two brands. Not a multi-tenant product.
+    Internal HTTP API for Adel Service, the field-service desk for Adel Electric, LLC.
+    Adel Electric and Service Contracts keep separate books in one database.
 
     Authenticate with a session cookie (`adel_session`) from `POST /api/auth/login`, or with
     `Authorization: Bearer adel_…` from an API token. Tokens are scoped to a role
@@ -95,7 +95,7 @@ paths:
   /api/v1/brands:
     get:
       tags: [Customers]
-      summary: List brands (Adel Electric and HED)
+      summary: List brands for the active company
       responses:
         "200":
           description: Brand list

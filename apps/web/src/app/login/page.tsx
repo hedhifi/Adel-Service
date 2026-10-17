@@ -14,9 +14,9 @@ export default async function LoginPage({
   const query = await searchParams;
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
-      <p className="text-sm font-semibold uppercase tracking-wide text-copper">Adel Electric · HED</p>
+      <p className="text-sm font-semibold uppercase tracking-wide text-copper">Adel Electric</p>
       <h1 className="mt-2 font-serif text-4xl">Adel Service</h1>
-      <p className="mt-2 text-sm text-muted">Office dispatch and the field app for our own crews. One company, two brands.</p>
+      <p className="mt-2 text-sm text-muted">Office dispatch and the field app for Adel Electric crews.</p>
       <form action={loginAction} className="mt-6 space-y-3 rounded-lg border border-line bg-card p-4">
         <Flash error={query.error} />
         <input type="hidden" name="next" value={query.next ?? ""} />
