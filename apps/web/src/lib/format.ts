@@ -37,6 +37,10 @@ export function invoiceNo(n: number) {
   return `INV-${n}`;
 }
 
+export function billNo(n: number) {
+  return `BILL-${n}`;
+}
+
 export function address(parts: { line1: string; line2?: string | null; city: string; state: string; postalCode: string }) {
   return [parts.line1, parts.line2, `${parts.city}, ${parts.state} ${parts.postalCode}`].filter(Boolean).join(", ");
 }

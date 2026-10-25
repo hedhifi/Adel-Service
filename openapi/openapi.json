@@ -3,7 +3,7 @@
   "info": {
     "title": "Adel Service API",
     "version": "0.1.0",
-    "description": "Internal HTTP API for Adel Service, the field-service desk for Adel Electric, LLC.\nAdel Electric and Service Contracts keep separate books in one database.\n\nAuthenticate with a session cookie (`adel_session`) from `POST /api/auth/login`, or with\n`Authorization: Bearer adel_…` from an API token. Tokens are scoped to a role\n(`admin`, `office`, or `tech`). A technician token can only see visits assigned to that person.\n\nMoney is integer cents. Tax rates are basis points (700 = 7%). Webhook bodies are signed\nwith HMAC-SHA256 over `{timestamp}.{rawBody}` and sent as `X-Adel-Signature: sha256=…`.\n"
+    "description": "Internal HTTP API for Adel Service, the field-service desk for Adel Electric, LLC.\nAdel Electric and Service Contracts keep separate books in one database.\nEach company has its own ledger, reports, and CSV or Excel export.\nIntercompany charges cross only through the link layer.\nThe QuickBooks routes are an optional plug-in and return 404 unless\nACCOUNTING_PROVIDER=quickbooks. That plug-in stays on the Intuit sandbox.\n\nAuthenticate with a session cookie (`adel_session`) from `POST /api/auth/login`, or with\n`Authorization: Bearer adel_…` from an API token. Tokens are scoped to a role\n(`admin`, `office`, or `tech`). A technician token can only see visits assigned to that person.\n\nMoney is integer cents. Tax rates are basis points (700 = 7%). Webhook bodies are signed\nwith HMAC-SHA256 over `{timestamp}.{rawBody}` and sent as `X-Adel-Signature: sha256=…`.\n"
   },
   "servers": [
     {
@@ -44,6 +44,12 @@
     },
     {
       "name": "Entities"
+    },
+    {
+      "name": "Books"
+    },
+    {
+      "name": "Intercompany"
     }
   ],
   "security": [
@@ -1732,7 +1738,13 @@
                         "job.scheduled",
                         "visit.completed",
                         "invoice.issued",
-                        "payment.received"
+                        "payment.received",
+                        "qbo.synced",
+                        "qbo.conflict",
+                        "qbo.failed",
+                        "intercompany.charged",
+                        "intercompany.invoiced",
+                        "intercompany.settled"
                       ]
                     }
                   }
@@ -2262,7 +2274,7 @@
           "Entities"
         ],
         "summary": "Link a customer in the active company to a customer in another company",
-        "description": "Record ids are stored without a foreign key. This is the only cross-company reference.",
+        "description": "Record ids are stored without a foreign key. Customer links are one kind of cross-company reference.",
         "responses": {
           "201": {
             "description": "Link"
@@ -2280,6 +2292,502 @@
         "responses": {
           "200": {
             "description": "Active company"
+          }
+        }
+      }
+    },
+    "/api/v1/items": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "List products and services for the active company",
+        "responses": {
+          "200": {
+            "description": "Catalog items"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Add a product or service",
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/items/{id}": {
+      "patch": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Update a product or service",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/books": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Ledger, aging, revenue, payments, and intercompany balance for the active company",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "asOf",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "This company's books. The other company's invoices and bills are not included."
+          }
+        }
+      }
+    },
+    "/api/v1/books/aging": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Accounts receivable aging for the active company",
+        "parameters": [
+          {
+            "name": "asOf",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Open invoices in current, 1-30, 31-60, 61-90, and 91+ day buckets"
+          }
+        }
+      }
+    },
+    "/api/v1/books/revenue": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Revenue by month for the active company",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service revenue and intercompany revenue, with sales tax"
+          }
+        }
+      }
+    },
+    "/api/v1/books/payments": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Payments received by the active company",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "asOf",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succeeded payments"
+          }
+        }
+      }
+    },
+    "/api/v1/books/export": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Download one report as CSV, or the workbook as Excel",
+        "description": "report is balances, ledger, aging, revenue, payments, intercompany, or workbook.\nformat is csv or xlsx. workbook is xlsx only. Amounts are dollars.\n",
+        "parameters": [
+          {
+            "name": "report",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv",
+                "xlsx"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "asOf",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A CSV or Excel file for this company only"
+          }
+        }
+      }
+    },
+    "/api/v1/qbo": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Optional QuickBooks sandbox connection for the active company",
+        "description": "Off unless ACCOUNTING_PROVIDER=quickbooks. Tokens are never returned.\nProduction QuickBooks is refused. The ledger in Adel Service is the book of record.\n",
+        "responses": {
+          "200": {
+            "description": "Connection, or null when this company is not connected"
+          }
+        }
+      }
+    },
+    "/api/v1/qbo/connect": {
+      "post": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Connect the active company to its own QuickBooks sandbox",
+        "description": "With no Intuit keys, this opens a mock sandbox company whose realm id is\nunique to this partition. With QBO_PROVIDER=intuit and sandbox keys, the\nresponse includes an authorization URL instead of connecting immediately.\n",
+        "responses": {
+          "200": {
+            "description": "Connected, or an Intuit sandbox authorization URL"
+          }
+        }
+      }
+    },
+    "/api/v1/qbo/disconnect": {
+      "post": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Stop syncing this company",
+        "description": "Mappings are kept so a reconnect updates the same sandbox records.",
+        "responses": {
+          "200": {
+            "description": "Disconnected"
+          }
+        }
+      }
+    },
+    "/api/v1/qbo/sync": {
+      "post": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Push and pull customers, items, invoices, and payments",
+        "description": "Emits qbo.synced, qbo.conflict, or qbo.failed. A conflict is not overwritten.",
+        "responses": {
+          "200": {
+            "description": "Sync summary"
+          }
+        }
+      }
+    },
+    "/api/v1/qbo/retry": {
+      "post": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Retry failed QuickBooks syncs",
+        "description": "Without force, retries respect backoff and stop after 5 attempts. force true tries the failed rows now.",
+        "responses": {
+          "200": {
+            "description": "Sync summary"
+          }
+        }
+      }
+    },
+    "/api/v1/qbo/log": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Recent QuickBooks sync log for the active company",
+        "responses": {
+          "200": {
+            "description": "Log rows"
+          }
+        }
+      }
+    },
+    "/api/v1/qbo/conflicts": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Open QuickBooks conflicts for the active company",
+        "responses": {
+          "200": {
+            "description": "Conflicts"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Resolve one conflict",
+        "description": "choice local overwrites QuickBooks. choice remote is allowed for customers, items, and vendors. Invoices stay in Adel Service.",
+        "responses": {
+          "200": {
+            "description": "Resolved"
+          }
+        }
+      }
+    },
+    "/api/v1/qbo/oauth/callback": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Intuit sandbox OAuth callback",
+        "description": "Refuses a missing sandbox configuration and refuses production realm ids. Redirects back to the Books page.",
+        "responses": {
+          "302": {
+            "description": "Redirect to /books"
+          }
+        }
+      }
+    },
+    "/api/v1/intercompany/rates": {
+      "get": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "Rates that name the active company",
+        "responses": {
+          "200": {
+            "description": "Rates"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "Add a rate between the two companies",
+        "description": "The caller has to belong to both companies.",
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/intercompany/rates/{id}": {
+      "patch": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "Change a rate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/intercompany/charges": {
+      "get": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "Charges that name the active company",
+        "responses": {
+          "200": {
+            "description": "Charges"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "Record an intercompany charge",
+        "description": "Emits intercompany.charged to both companies. The visit id, when present, is not a foreign key.",
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/intercompany/charges/from-visit": {
+      "post": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "Bill a visit to the other company using a rate",
+        "description": "Hours come from time entries, or from the scheduled length when nobody clocked.",
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/intercompany/charges/{id}/void": {
+      "post": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "Void an open charge",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voided"
+          }
+        }
+      }
+    },
+    "/api/v1/intercompany/invoices": {
+      "post": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "Create the supplying company's invoice and the consuming company's bill",
+        "description": "The two documents are linked through entity_links and are not foreign keys.\nTax is zero. Each side syncs to its own QuickBooks company when that company is connected.\nEmits intercompany.invoiced.\n",
+        "responses": {
+          "201": {
+            "description": "Invoice and bill"
+          }
+        }
+      }
+    },
+    "/api/v1/intercompany/settle": {
+      "post": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "Record the same settlement on both books",
+        "description": "A payment on the supplier invoice and a bill payment on the consumer bill. Emits intercompany.settled and syncs both QuickBooks companies.",
+        "responses": {
+          "200": {
+            "description": "Reconciliation after the settlement"
+          }
+        }
+      }
+    },
+    "/api/v1/intercompany/reconciliation": {
+      "get": {
+        "tags": [
+          "Intercompany"
+        ],
+        "summary": "What the two companies owe each other",
+        "description": "The other company's invoice or bill is included only when this login belongs to that company.\nA token for one company sees its own document and the link endpoint id.\n",
+        "responses": {
+          "200": {
+            "description": "Open charges, pairs, and the net for the active company"
           }
         }
       }

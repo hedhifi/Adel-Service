@@ -628,3 +628,265 @@ export const entityLinks = pgTable(
   },
   (table) => [index("entity_links_from_idx").on(table.fromEntityId), index("entity_links_to_idx").on(table.toEntityId)],
 );
+
+export const qboEnvironment = pgEnum("qbo_environment", ["sandbox"]);
+export const qboProvider = pgEnum("qbo_provider", ["mock", "intuit"]);
+export const qboResource = pgEnum("qbo_resource", [
+  "customer",
+  "item",
+  "invoice",
+  "payment",
+  "vendor",
+  "bill",
+  "bill_payment",
+]);
+export const qboSyncStatus = pgEnum("qbo_sync_status", ["synced", "failed", "conflict", "pending"]);
+export const intercompanyKind = pgEnum("intercompany_kind", ["labor", "material", "shared"]);
+export const intercompanyChargeStatus = pgEnum("intercompany_charge_status", ["open", "invoiced", "void"]);
+export const billStatus = pgEnum("bill_status", ["draft", "issued", "partial", "paid", "void"]);
+
+/** Products and services for one company. Synced to that company's QuickBooks items. */
+export const catalogItems = pgTable(
+  "catalog_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    kind: lineKind("kind").notNull().default("other"),
+    sku: text("sku"),
+    unitAmountCents: integer("unit_amount_cents").notNull(),
+    taxable: boolean("taxable").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("catalog_items_entity_name_unique").on(table.entityId, table.name), index("catalog_items_entity_idx").on(table.entityId)],
+);
+
+/** A vendor in one company's books. The other company is named here, not linked by a foreign key. */
+export const vendors = pgTable(
+  "vendors",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    name: text("name").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("vendors_entity_name_unique").on(table.entityId, table.name)],
+);
+
+export const bills = pgTable(
+  "bills",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    number: integer("number").notNull(),
+    vendorId: uuid("vendor_id")
+      .notNull()
+      .references(() => vendors.id),
+    status: billStatus("status").notNull().default("draft"),
+    taxRateBps: integer("tax_rate_bps").notNull().default(0),
+    issuedAt: timestamp("issued_at", { withTimezone: true }),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("bills_entity_number_unique").on(table.entityId, table.number), index("bills_entity_idx").on(table.entityId)],
+);
+
+export const billLineItems = pgTable(
+  "bill_line_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    billId: uuid("bill_id")
+      .notNull()
+      .references(() => bills.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    kind: lineKind("kind").notNull().default("other"),
+    description: text("description").notNull(),
+    quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+    unitAmountCents: integer("unit_amount_cents").notNull(),
+    taxable: boolean("taxable").notNull().default(false),
+  },
+  (table) => [index("bill_lines_bill_idx").on(table.billId)],
+);
+
+export const billPayments = pgTable(
+  "bill_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    billId: uuid("bill_id")
+      .notNull()
+      .references(() => bills.id),
+    amountCents: integer("amount_cents").notNull(),
+    status: paymentStatus("status").notNull(),
+    method: paymentMethod("method").notNull(),
+    reference: text("reference"),
+    recordedById: uuid("recorded_by_id").references(() => users.id),
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("bill_payments_bill_idx").on(table.billId)],
+);
+
+/**
+ * One QuickBooks company per partition. Environment is sandbox only.
+ * Access tokens are never returned by the API and are never live credentials.
+ */
+export const qboConnections = pgTable(
+  "qbo_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    environment: qboEnvironment("environment").notNull().default("sandbox"),
+    provider: qboProvider("provider").notNull().default("mock"),
+    realmId: text("realm_id").notNull(),
+    companyName: text("company_name").notNull(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("qbo_connections_entity_unique").on(table.entityId), unique("qbo_connections_realm_unique").on(table.realmId)],
+);
+
+export const qboMappings = pgTable(
+  "qbo_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    resourceType: qboResource("resource_type").notNull(),
+    resourceId: uuid("resource_id").notNull(),
+    realmId: text("realm_id").notNull(),
+    qboId: text("qbo_id").notNull(),
+    syncToken: text("sync_token").notNull(),
+    localHash: text("local_hash").notNull(),
+    remoteHash: text("remote_hash").notNull(),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("qbo_mappings_local_unique").on(table.entityId, table.resourceType, table.resourceId),
+    unique("qbo_mappings_remote_unique").on(table.realmId, table.resourceType, table.qboId),
+  ],
+);
+
+export const qboSyncState = pgTable(
+  "qbo_sync_state",
+  {
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    resourceType: qboResource("resource_type").notNull(),
+    resourceId: uuid("resource_id").notNull(),
+    status: qboSyncStatus("status").notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.entityId, table.resourceType, table.resourceId] })],
+);
+
+export const qboSyncLog = pgTable(
+  "qbo_sync_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    resourceType: qboResource("resource_type").notNull(),
+    resourceId: uuid("resource_id").notNull(),
+    direction: text("direction").notNull(),
+    status: qboSyncStatus("status").notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    message: text("message"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("qbo_sync_log_entity_idx").on(table.entityId, table.createdAt)],
+);
+
+/** Stand-in for the Intuit sandbox when no sandbox app keys are configured. One realm is one QuickBooks company. */
+export const qboSandboxObjects = pgTable(
+  "qbo_sandbox_objects",
+  {
+    realmId: text("realm_id").notNull(),
+    qboType: text("qbo_type").notNull(),
+    qboId: text("qbo_id").notNull(),
+    syncToken: integer("sync_token").notNull(),
+    payload: jsonb("payload").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.realmId, table.qboType, table.qboId] })],
+);
+
+/** The price one company charges the other. Both entity ids are the partition keys, not a book entry. */
+export const intercompanyRates = pgTable(
+  "intercompany_rates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    supplyingEntityId: uuid("supplying_entity_id")
+      .notNull()
+      .references(() => entities.id),
+    consumingEntityId: uuid("consuming_entity_id")
+      .notNull()
+      .references(() => entities.id),
+    kind: intercompanyKind("kind").notNull(),
+    name: text("name").notNull(),
+    unit: text("unit").notNull(),
+    unitAmountCents: integer("unit_amount_cents").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("intercompany_rates_name_unique").on(table.supplyingEntityId, table.consumingEntityId, table.name),
+    index("intercompany_rates_supplying_idx").on(table.supplyingEntityId),
+  ],
+);
+
+/**
+ * Link-layer charge. Visit and invoice ids are not foreign keys, so either
+ * company can be exported without the other's books.
+ */
+export const intercompanyCharges = pgTable(
+  "intercompany_charges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    supplyingEntityId: uuid("supplying_entity_id")
+      .notNull()
+      .references(() => entities.id),
+    consumingEntityId: uuid("consuming_entity_id")
+      .notNull()
+      .references(() => entities.id),
+    rateId: uuid("rate_id").references(() => intercompanyRates.id),
+    kind: intercompanyKind("kind").notNull(),
+    description: text("description").notNull(),
+    quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+    unitAmountCents: integer("unit_amount_cents").notNull(),
+    sourceVisitId: uuid("source_visit_id"),
+    technicianUserId: uuid("technician_user_id").references(() => users.id),
+    status: intercompanyChargeStatus("status").notNull().default("open"),
+    supplierInvoiceId: uuid("supplier_invoice_id"),
+    consumerBillId: uuid("consumer_bill_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("intercompany_charges_supplying_idx").on(table.supplyingEntityId),
+    index("intercompany_charges_consuming_idx").on(table.consumingEntityId),
+  ],
+);

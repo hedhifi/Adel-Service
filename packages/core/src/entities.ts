@@ -1,16 +1,24 @@
 import {
+  billPayments,
+  bills,
   brands,
+  catalogItems,
   contracts,
   customers,
   db,
   entities,
   entityLinks,
+  intercompanyCharges,
+  intercompanyRates,
   invoices,
   jobs,
   payments,
   properties,
+  qboConnections,
+  qboMappings,
   quotes,
   requests,
+  vendors,
   visits,
   webhookEndpoints,
 } from "@adel/db";
@@ -151,7 +159,7 @@ export async function exportEntity(actor: Actor) {
   const entityId = actor.entityId;
   const [entity] = await db.select().from(entities).where(eq(entities.id, entityId));
   if (!entity) throw notFound("Company not found.");
-  const [brandRows, customerRows, propertyRows, requestRows, quoteRows, jobRows, visitRows, invoiceRows, paymentRows, contractRows, webhookRows, linkRows] =
+  const [brandRows, customerRows, propertyRows, requestRows, quoteRows, jobRows, visitRows, invoiceRows, paymentRows, contractRows, webhookRows, linkRows, itemRows, vendorRows, billRows, billPaymentRows, quickbooksRows, mappingRows, rateRows, chargeRows] =
     await Promise.all([
       db.select().from(brands).where(eq(brands.entityId, entityId)),
       db.select().from(customers).where(eq(customers.entityId, entityId)),
@@ -187,6 +195,50 @@ export async function exportEntity(actor: Actor) {
         .select()
         .from(entityLinks)
         .where(or(eq(entityLinks.fromEntityId, entityId), eq(entityLinks.toEntityId, entityId))),
+      db.select().from(catalogItems).where(eq(catalogItems.entityId, entityId)),
+      db.select().from(vendors).where(eq(vendors.entityId, entityId)),
+      db.select().from(bills).where(eq(bills.entityId, entityId)),
+      db
+        .select({
+          id: billPayments.id,
+          billId: billPayments.billId,
+          amountCents: billPayments.amountCents,
+          method: billPayments.method,
+          status: billPayments.status,
+          reference: billPayments.reference,
+          createdAt: billPayments.createdAt,
+        })
+        .from(billPayments)
+        .innerJoin(bills, eq(bills.id, billPayments.billId))
+        .where(eq(bills.entityId, entityId)),
+      db
+        .select({
+          id: qboConnections.id,
+          environment: qboConnections.environment,
+          provider: qboConnections.provider,
+          realmId: qboConnections.realmId,
+          companyName: qboConnections.companyName,
+        })
+        .from(qboConnections)
+        .where(eq(qboConnections.entityId, entityId)),
+      db
+        .select({
+          id: qboMappings.id,
+          resourceType: qboMappings.resourceType,
+          resourceId: qboMappings.resourceId,
+          realmId: qboMappings.realmId,
+          qboId: qboMappings.qboId,
+        })
+        .from(qboMappings)
+        .where(eq(qboMappings.entityId, entityId)),
+      db
+        .select()
+        .from(intercompanyRates)
+        .where(or(eq(intercompanyRates.supplyingEntityId, entityId), eq(intercompanyRates.consumingEntityId, entityId))),
+      db
+        .select()
+        .from(intercompanyCharges)
+        .where(or(eq(intercompanyCharges.supplyingEntityId, entityId), eq(intercompanyCharges.consumingEntityId, entityId))),
     ]);
   return {
     data: {
@@ -202,6 +254,14 @@ export async function exportEntity(actor: Actor) {
       payments: paymentRows,
       contracts: contractRows,
       webhooks: webhookRows,
+      catalogItems: itemRows,
+      vendors: vendorRows,
+      bills: billRows,
+      billPayments: billPaymentRows,
+      quickbooks: quickbooksRows,
+      quickbooksMappings: mappingRows,
+      intercompanyRates: rateRows,
+      intercompanyCharges: chargeRows,
       links: linkRows.map((link) => ({
         id: link.id,
         kind: link.kind,

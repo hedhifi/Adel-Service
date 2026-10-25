@@ -123,7 +123,7 @@ Arrival inside 150 meters can set the visit to on site. Leaving records a depart
 
 ## Assumptions (v1)
 
-- Adel Electric and Service Contracts are two companies in one database. They share the servers, the office desk, and the tech phone app. Their books stay separate. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- Adel Electric and Service Contracts are two companies in one database. They share the servers, the office desk, and the tech phone app. Their books stay separate. Each company has its own ledger, reports, and CSV or Excel export. Charges between them become an invoice in one book and a bill in the other. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/books.md](docs/books.md).
 - Default tax is 7% (700 basis points), labeled as an estimate. Materials are taxable. Labor is not. The rate is snapshotted onto each estimate and invoice.
 - The shop clock is `America/New_York`. `America/Chicago` is the other option in settings.
 - The office can approve a draft or a sent estimate in person. A customer can approve or decline only from the link, and only while the estimate is sent and inside 30 days.

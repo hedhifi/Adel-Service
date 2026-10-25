@@ -13,6 +13,8 @@ const links = [
   ["/jobs", "Jobs"],
   ["/invoices", "Invoices"],
   ["/customers", "Customers"],
+  ["/books", "Books"],
+  ["/intercompany", "Between companies"],
   ["/settings", "Settings"],
 ];
 

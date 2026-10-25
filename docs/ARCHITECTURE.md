@@ -19,11 +19,12 @@ Adel Electric (project electrical work) and Service Contracts share infrastructu
 - Recurring visit plans
 - Renewal reminders
 - Contract billing: monthly or annual flat fee, and covered versus non-covered labor
-- Intercompany billing for shared resources. When Adel Electric’s office staff, techs, or shared infrastructure do work for the Service Contracts entity, record it and let the office generate internal invoices from one entity to the other (labor hours by rate, and shared-cost allocations). Each side keeps the invoice in its own books. The companies can settle up, and a future split keeps that history. Invoices still cross only through the documented link layer.
+
+Intercompany billing is in place. A charge is a link-layer row (`intercompany_charges`, `intercompany_rates`). Generating it writes an invoice in the supplying company's books and a bill in the consuming company's books. `entity_links` kinds `intercompany_invoice`, `intercompany_customer`, and `intercompany_vendor` point at those records without a foreign key into the other company's tables. Each company has its own ledger and exports. See [books.md](books.md).
 
 ## Where this stops
 
-Sharing a server, a database cluster, or a UI is allowed. Merging the books is not. This principle does not require a second deployment now, and it does not pull recurring visits, renewals, contract billing, or intercompany billing into the current pass.
+Sharing a server, a database cluster, or a UI is allowed. Merging the books is not. This principle does not require a second deployment now, and it does not pull recurring visits, renewals, or contract billing into the current pass.
 
 A later split is a separate database and a separate deployment. Copy the one entity’s rows and its link-layer endpoints. Leave the other entity behind. User login may stay shared; business data may not.
 

@@ -18,6 +18,7 @@ import { lineItemSchema, pageSchema, parse, type LineInput } from "./parse";
 import { assertOffice, type Actor } from "./permissions";
 import { assertActiveBook } from "./scope";
 import { getEntity } from "./settings";
+import { afterBooksChange } from "./qbo/sync";
 import { emitEvent, safeDeliver } from "./webhooks";
 
 function priceLines(lines: PricedLine[], taxRateBps: number) {
@@ -246,7 +247,9 @@ export async function issueInvoice(actor: Actor, id: string) {
     }, invoice.entityId);
   });
   await safeDeliver();
-  return loadInvoice(id);
+  const loaded = await loadInvoice(id);
+  await afterBooksChange(loaded.data.entityId);
+  return loaded;
 }
 
 export async function voidInvoice(actor: Actor, id: string) {
@@ -259,6 +262,7 @@ export async function voidInvoice(actor: Actor, id: string) {
     throw new AppError(409, "This invoice has a payment on it, so it can't be voided.", "invalid_state");
   }
   await db.update(invoices).set({ status: "void", updatedAt: new Date() }).where(eq(invoices.id, id));
+  await afterBooksChange(invoice.entityId);
   return loadInvoice(id);
 }
 
@@ -272,9 +276,11 @@ export async function recordManualPayment(actor: Actor, invoiceId: string, input
     }),
     input,
   );
+  let entityId = "";
   await db.transaction(async (tx) => {
     const [invoice] = await tx.select().from(invoices).where(eq(invoices.id, invoiceId));
     if (!invoice) throw notFound("Invoice not found.");
+    entityId = invoice.entityId;
     assertActiveBook(actor, invoice.entityId);
     if (invoice.status !== "issued" && invoice.status !== "partial") {
       throw new AppError(409, "Issue the invoice before recording a payment.", "invalid_state");
@@ -304,6 +310,7 @@ export async function recordManualPayment(actor: Actor, invoiceId: string, input
     }, invoice.entityId);
   });
   await safeDeliver();
+  await afterBooksChange(entityId);
   return loadInvoice(invoiceId);
 }
 
@@ -375,7 +382,8 @@ export async function startCardPayment(actor: Actor, invoiceId: string) {
 export async function markCardPaymentSucceeded(stripePaymentIntentId: string, amountReceived?: number) {
   const updated = await db.transaction(async (tx) => {
     const [payment] = await tx.select().from(payments).where(eq(payments.stripePaymentIntentId, stripePaymentIntentId));
-    if (!payment || payment.status === "succeeded") return payment ?? null;
+    if (!payment) return { payment: null, entityId: null as string | null, changed: false };
+    if (payment.status === "succeeded") return { payment, entityId: null as string | null, changed: false };
     const amount = amountReceived && amountReceived > 0 ? amountReceived : payment.amountCents;
     await tx
       .update(payments)
@@ -389,10 +397,13 @@ export async function markCardPaymentSucceeded(stripePaymentIntentId: string, am
       amountCents: amount,
       method: "card",
     }, invoice?.entityId ?? payment.invoiceId);
-    return payment;
+    return { payment, entityId: invoice?.entityId ?? null, changed: true };
   });
-  if (updated && updated.status !== "succeeded") await safeDeliver();
-  return updated;
+  if (updated.changed) {
+    await safeDeliver();
+    if (updated.entityId) await afterBooksChange(updated.entityId);
+  }
+  return updated.payment;
 }
 
 export async function syncCardPayment(actor: Actor, invoiceId: string, input: unknown) {

@@ -44,15 +44,18 @@ const {
   speechTerms,
   visitNotes,
   visits,
+  catalogItems,
+  intercompanyRates,
 } = schema;
 
 const existing = await db.select({ id: users.id }).from(users).limit(1);
-if (existing.length && process.env.SEED_RESET !== "yes") {
+if (process.env.SEED_RESET === "yes") {
+  await truncateAll();
+} else if (existing.length) {
   console.log("Database already has users. Set SEED_RESET=yes to wipe and reseed.");
   await sql.end();
   process.exit(0);
 }
-if (existing.length) await truncateAll();
 
 const passwordHash = await bcrypt.hash("Fieldnote-demo-2026", 10);
 const timeZone = "America/New_York";
@@ -440,6 +443,80 @@ await db.insert(counters).values([
   { entityId: ADEL_ENTITY_ID, name: "quote", value: 1003 },
   { entityId: ADEL_ENTITY_ID, name: "job", value: 1002 },
   { entityId: ADEL_ENTITY_ID, name: "invoice", value: 1001 },
+  { entityId: SERVICE_ENTITY_ID, name: "job", value: 1001 },
+]);
+
+const [palmCourt] = await db
+  .insert(customers)
+  .values({
+    entityId: SERVICE_ENTITY_ID,
+    brandId: SERVICE_BRAND_ID,
+    name: "Palm Court HOA",
+    email: "board@palmcourt.example",
+    phone: "239-555-0160",
+    notes: "Quarterly lighting check on the service contract. Adel Electric supplies the technician.",
+  })
+  .returning();
+const [palmProperty] = await db
+  .insert(properties)
+  .values({
+    entityId: SERVICE_ENTITY_ID,
+    customerId: palmCourt.id,
+    label: "Clubhouse",
+    line1: "900 Palm Court Dr",
+    city: "Naples",
+    state: "FL",
+    postalCode: "34108",
+    accessNotes: "Check in at the guardhouse. Panel is in the clubhouse electrical room.",
+    latitude: 26.271,
+    longitude: -81.801,
+  })
+  .returning();
+const [palmJob] = await db
+  .insert(jobs)
+  .values({
+    entityId: SERVICE_ENTITY_ID,
+    number: 1001,
+    customerId: palmCourt.id,
+    propertyId: palmProperty.id,
+    brandId: SERVICE_BRAND_ID,
+    title: "Quarterly lighting check",
+    status: "scheduled",
+    instructions: "Marco is on Adel Electric's payroll. Charge his time back to Service Contracts.",
+  })
+  .returning();
+await db.insert(visits).values({
+  entityId: SERVICE_ENTITY_ID,
+  jobId: palmJob.id,
+  technicianId: marco.id,
+  scheduledStart: zonedDateTime(today, "09:00", timeZone),
+  scheduledEnd: zonedDateTime(today, "11:00", timeZone),
+  status: "scheduled",
+});
+
+await db.insert(catalogItems).values([
+  { entityId: ADEL_ENTITY_ID, name: "LED driver", kind: "material", unitAmountCents: 4200, taxable: true, description: "Constant-current driver" },
+  { entityId: ADEL_ENTITY_ID, name: "Labor", kind: "labor", unitAmountCents: 12500, taxable: false, description: "Field labor" },
+  { entityId: SERVICE_ENTITY_ID, name: "Contract visit", kind: "labor", unitAmountCents: 0, taxable: false, description: "Included service-contract visit" },
+]);
+
+await db.insert(intercompanyRates).values([
+  {
+    supplyingEntityId: ADEL_ENTITY_ID,
+    consumingEntityId: SERVICE_ENTITY_ID,
+    kind: "labor",
+    name: "Field technician hour",
+    unit: "hour",
+    unitAmountCents: 9500,
+  },
+  {
+    supplyingEntityId: ADEL_ENTITY_ID,
+    consumingEntityId: SERVICE_ENTITY_ID,
+    kind: "material",
+    name: "Materials at cost",
+    unit: "each",
+    unitAmountCents: 0,
+  },
 ]);
 
 const demoSecret = newSecret("adel_");

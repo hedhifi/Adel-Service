@@ -15,6 +15,7 @@ import { AppError, notFound } from "./errors";
 import { isUniqueViolation, optionalText, pageSchema, parse } from "./parse";
 import { assertOffice, type Actor } from "./permissions";
 import { assertActiveBook } from "./scope";
+import { afterBooksChange } from "./qbo/sync";
 import { emitEvent, safeDeliver } from "./webhooks";
 
 const customerInput = z.object({
@@ -122,7 +123,7 @@ export async function getCustomer(actor: Actor, id: string) {
 export async function createCustomer(actor: Actor, input: unknown) {
   assertOffice(actor);
   const data = parse(customerInput, input);
-  return db.transaction(async (tx) => {
+  const created = await db.transaction(async (tx) => {
     await requireBrand(tx, data.brandId, actor.entityId);
     try {
       const [row] = await tx.insert(customers).values({ ...data, entityId: actor.entityId }).returning();
@@ -133,6 +134,8 @@ export async function createCustomer(actor: Actor, input: unknown) {
       throw err;
     }
   });
+  await afterBooksChange(actor.entityId);
+  return created;
 }
 
 export async function updateCustomer(actor: Actor, id: string, input: unknown) {
@@ -147,7 +150,9 @@ export async function updateCustomer(actor: Actor, id: string, input: unknown) {
     .set({ ...data, updatedAt: new Date() })
     .where(eq(customers.id, id))
     .returning();
-  return getCustomer(actor, row.id);
+  const result = await getCustomer(actor, row.id);
+  await afterBooksChange(actor.entityId);
+  return result;
 }
 
 export async function createProperty(actor: Actor, customerId: string, input: unknown) {

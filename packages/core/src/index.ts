@@ -1,4 +1,32 @@
 export { createContract, exportEntity, linkCustomers, listContracts, listEntityLinks, renameEntity } from "./entities";
+export { createCatalogItem, listCatalogItems, updateCatalogItem } from "./catalog";
+export { assertQuickBooksPlugin, quickBooksPluginEnabled } from "./accounting/provider";
+export { exportBooks, getBooks } from "./books";
+export {
+  completeSandboxOAuth,
+  connectQuickBooks,
+  disconnectQuickBooks,
+  getQuickBooks,
+  listQuickBooksConflicts,
+  listQuickBooksLog,
+  resolveQuickBooksConflict,
+  retryQuickBooks,
+  syncQuickBooks,
+} from "./qbo/sync";
+export { IntuitSandboxProvider, assertSandboxBase, failNextSandboxWrites, resetSandboxFaults } from "./qbo/sandbox";
+export {
+  createChargeFromVisit,
+  createIntercompanyCharge,
+  createIntercompanyRate,
+  generateIntercompanyInvoice,
+  getReconciliation,
+  listIntercompanyCharges,
+  listIntercompanyRates,
+  listIntercompanyVisits,
+  settleIntercompany,
+  updateIntercompanyRate,
+  voidIntercompanyCharge,
+} from "./intercompany";
 export { switchEntity } from "./auth";
 export { AppError } from "./errors";
 export type { Actor, Membership } from "./permissions";

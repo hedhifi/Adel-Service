@@ -14,6 +14,12 @@ export const WEBHOOK_EVENTS = [
   "visit.completed",
   "invoice.issued",
   "payment.received",
+  "qbo.synced",
+  "qbo.conflict",
+  "qbo.failed",
+  "intercompany.charged",
+  "intercompany.invoiced",
+  "intercompany.settled",
 ] as const;
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];

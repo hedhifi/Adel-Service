@@ -6,9 +6,9 @@ These are intentionally out of v1. The desk, the field web app, invoices, test-m
 
 Technicians install the web app on a phone today (Add to Home Screen). A native iOS and Android app would add a reliable offline queue for notes, photos, and time entries when a job site has no signal, plus push when the office moves a visit.
 
-## QuickBooks sync
+## Books
 
-Invoices and payments stay in Adel Service. A later sync would push issued invoices and received payments into the company QuickBooks file and pull payment status back. It should not become a second ledger inside this app.
+Each company keeps its own ledger in Adel Service: invoices, payments, and intercompany bills, plus receivables aging, revenue by month, payments received, and the balance between the companies. CSV and Excel exports are the handoff to an accountant. A QuickBooks sandbox plug-in exists and stays off unless `ACCOUNTING_PROVIDER=quickbooks`. See [docs/books.md](docs/books.md).
 
 ## AI receptionist
 
@@ -21,7 +21,7 @@ Adel Electric and Service Contracts already keep separate books. These contract 
 - Recurring visit plans for a contract
 - Renewal reminders before a contract end date
 - Contract billing: a monthly or annual flat fee, and a way to tell covered labor from labor that is billed extra
-- Intercompany billing for shared resources. When Adel Electric’s office staff, technicians, or shared infrastructure do work for Service Contracts, record it and let the office generate an internal invoice from one company to the other (labor hours by rate, and shared-cost allocations). Each invoice stays in the company that issued it and in the company that received it, so they can settle up and a future split keeps that history. Those invoices cross only through the documented link layer.
+- Intercompany billing is in place for shared labor, materials, and other charges. Rates are configurable. The supplier's book gets an invoice and the consumer's book gets a bill, linked without a foreign key. See [docs/books.md](docs/books.md).
 
 ## Other gaps left on purpose
 
