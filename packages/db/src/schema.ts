@@ -380,6 +380,7 @@ export const invoices = pgTable(
       .references(() => entities.id),
     number: integer("number").notNull(),
     jobId: uuid("job_id").references(() => jobs.id),
+    contractId: uuid("contract_id").references(() => contracts.id),
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id),
@@ -397,6 +398,7 @@ export const invoices = pgTable(
   (table) => [
     index("invoices_status_idx").on(table.status),
     index("invoices_job_idx").on(table.jobId),
+    index("invoices_contract_idx").on(table.contractId),
     unique("invoices_entity_number_unique").on(table.entityId, table.number),
   ],
 );
@@ -582,7 +584,12 @@ export const counters = pgTable(
   (table) => [primaryKey({ columns: [table.entityId, table.name] })],
 );
 
-export const contractStatus = pgEnum("contract_status", ["draft", "active", "ended"]);
+export const contractStatus = pgEnum("contract_status", ["draft", "active", "ended", "lapsed", "canceled"]);
+export const billingFrequency = pgEnum("billing_frequency", ["monthly", "quarterly", "annual", "custom"]);
+export const scheduleFrequency = pgEnum("schedule_frequency", ["monthly", "quarterly", "annual", "custom"]);
+export const scheduleIntervalUnit = pgEnum("schedule_interval_unit", ["day", "week", "month"]);
+export const occurrenceStatus = pgEnum("occurrence_status", ["scheduled", "skipped", "shifted"]);
+export const renewalSource = pgEnum("renewal_source", ["manual", "auto"]);
 
 export const contracts = pgTable(
   "contracts",
@@ -597,14 +604,178 @@ export const contracts = pgTable(
     propertyId: uuid("property_id")
       .notNull()
       .references(() => properties.id),
+    jobId: uuid("job_id").references(() => jobs.id),
+    title: text("title").notNull().default(""),
     startsOn: date("starts_on").notNull(),
     endsOn: date("ends_on"),
     status: contractStatus("status").notNull().default("draft"),
+    priceCents: integer("price_cents").notNull().default(0),
+    billingFrequency: billingFrequency("billing_frequency").notNull().default("annual"),
+    billingIntervalCount: integer("billing_interval_count").notNull().default(1),
+    scope: text("scope"),
     notes: text("notes"),
+    autoRenew: boolean("auto_renew").notNull().default(false),
+    renewalTermMonths: integer("renewal_term_months").notNull().default(12),
+    reminderDays: integer("reminder_days").notNull().default(30),
+    nextBillOn: date("next_bill_on"),
+    stripeCustomerId: text("stripe_customer_id"),
+    canceledAt: timestamp("canceled_at", { withTimezone: true }),
+    lapsedAt: timestamp("lapsed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("contracts_entity_idx").on(table.entityId)],
+);
+
+export const contractProperties = pgTable(
+  "contract_properties",
+  {
+    contractId: uuid("contract_id")
+      .notNull()
+      .references(() => contracts.id, { onDelete: "cascade" }),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => properties.id),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+  },
+  (table) => [primaryKey({ columns: [table.contractId, table.propertyId] }), index("contract_properties_entity_idx").on(table.entityId)],
+);
+
+export const contractEquipment = pgTable(
+  "contract_equipment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    contractId: uuid("contract_id")
+      .notNull()
+      .references(() => contracts.id, { onDelete: "cascade" }),
+    propertyId: uuid("property_id").references(() => properties.id),
+    name: text("name").notNull(),
+    location: text("location"),
+    serial: text("serial"),
+    notes: text("notes"),
+  },
+  (table) => [index("contract_equipment_contract_idx").on(table.contractId), index("contract_equipment_entity_idx").on(table.entityId)],
+);
+
+export const contractSchedules = pgTable(
+  "contract_schedules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    contractId: uuid("contract_id")
+      .notNull()
+      .references(() => contracts.id, { onDelete: "cascade" }),
+    frequency: scheduleFrequency("frequency").notNull(),
+    intervalCount: integer("interval_count").notNull().default(1),
+    intervalUnit: scheduleIntervalUnit("interval_unit").notNull().default("month"),
+    anchorOn: date("anchor_on").notNull(),
+    localStart: text("local_start").notNull().default("09:00"),
+    durationMinutes: integer("duration_minutes").notNull().default(60),
+    technicianId: uuid("technician_id").references(() => users.id),
+    horizonDays: integer("horizon_days").notNull().default(90),
+    title: text("title").notNull(),
+    instructions: text("instructions"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("contract_schedules_contract_idx").on(table.contractId), index("contract_schedules_entity_idx").on(table.entityId)],
+);
+
+export const scheduleOccurrences = pgTable(
+  "schedule_occurrences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    scheduleId: uuid("schedule_id")
+      .notNull()
+      .references(() => contractSchedules.id, { onDelete: "cascade" }),
+    originalOn: date("original_on").notNull(),
+    occursOn: date("occurs_on").notNull(),
+    visitId: uuid("visit_id").references(() => visits.id),
+    status: occurrenceStatus("status").notNull().default("scheduled"),
+    skipReason: text("skip_reason"),
+    pinned: boolean("pinned").notNull().default(false),
+    generatedStart: timestamp("generated_start", { withTimezone: true }),
+    generatedEnd: timestamp("generated_end", { withTimezone: true }),
+    generatedTechnicianId: uuid("generated_technician_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("schedule_occurrences_date_unique").on(table.scheduleId, table.originalOn),
+    index("schedule_occurrences_schedule_idx").on(table.scheduleId),
+    index("schedule_occurrences_entity_idx").on(table.entityId),
+  ],
+);
+
+export const contractCharges = pgTable(
+  "contract_charges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    contractId: uuid("contract_id")
+      .notNull()
+      .references(() => contracts.id, { onDelete: "cascade" }),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    invoiceId: uuid("invoice_id").references(() => invoices.id),
+    stripeInvoiceId: text("stripe_invoice_id"),
+    stripeError: text("stripe_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("contract_charges_period_unique").on(table.contractId, table.periodStart),
+    index("contract_charges_entity_idx").on(table.entityId),
+  ],
+);
+
+export const contractRenewals = pgTable(
+  "contract_renewals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    contractId: uuid("contract_id")
+      .notNull()
+      .references(() => contracts.id, { onDelete: "cascade" }),
+    previousEndsOn: date("previous_ends_on"),
+    newEndsOn: date("new_ends_on").notNull(),
+    previousPriceCents: integer("previous_price_cents").notNull(),
+    newPriceCents: integer("new_price_cents").notNull(),
+    source: renewalSource("source").notNull(),
+    renewedById: uuid("renewed_by_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("contract_renewals_contract_idx").on(table.contractId), index("contract_renewals_entity_idx").on(table.entityId)],
+);
+
+export const contractReminders = pgTable(
+  "contract_reminders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    contractId: uuid("contract_id")
+      .notNull()
+      .references(() => contracts.id, { onDelete: "cascade" }),
+    endsOn: date("ends_on").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("contract_reminders_term_unique").on(table.contractId, table.endsOn), index("contract_reminders_entity_idx").on(table.entityId)],
 );
 
 /**

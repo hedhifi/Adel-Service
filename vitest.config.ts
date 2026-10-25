@@ -12,7 +12,7 @@ export default defineConfig({
     testTimeout: 30000,
     globalSetup: ["./tests/global-setup.ts"],
     setupFiles: ["./tests/truncate.ts"],
-    include: ["tests/adel.test.ts"],
+    include: ["tests/**/*.test.ts"],
     env: {
       DATABASE_URL: databaseUrl,
       TEST_DATABASE_URL: databaseUrl,

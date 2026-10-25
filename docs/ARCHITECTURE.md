@@ -16,20 +16,17 @@ Adel Electric (project electrical work) and Service Contracts share infrastructu
 
 ## Follow-ups (do not build yet)
 
-- Recurring visit plans
-- Renewal reminders
-- Contract billing: monthly or annual flat fee, and covered versus non-covered labor
 - Intercompany billing for shared resources. When Adel Electric’s office staff, techs, or shared infrastructure do work for the Service Contracts entity, record it and let the office generate internal invoices from one entity to the other (labor hours by rate, and shared-cost allocations). Each side keeps the invoice in its own books. The companies can settle up, and a future split keeps that history. Invoices still cross only through the documented link layer.
 
 ## Where this stops
 
-Sharing a server, a database cluster, or a UI is allowed. Merging the books is not. This principle does not require a second deployment now, and it does not pull recurring visits, renewals, contract billing, or intercompany billing into the current pass.
+Sharing a server, a database cluster, or a UI is allowed. Merging the books is not. This principle does not require a second deployment now. Recurring visits, renewals, and contract billing stay inside the company that owns the contract. Intercompany billing is still not built.
 
 A later split is a separate database and a separate deployment. Copy the one entity’s rows and its link-layer endpoints. Leave the other entity behind. User login may stay shared; business data may not.
 
 ## How this build follows the principle
 
-Adel Electric and Service Contracts are rows in `entities`. Customers, properties, requests, estimates, jobs, visits, invoices, contracts, brands, numbering counters, tax rates, Stripe account ids, API tokens, and webhook endpoints each carry `entity_id`. A basic contract is a customer, a property, a start, an end, a status, and notes. It does not bill.
+Adel Electric and Service Contracts are rows in `entities`. Customers, properties, requests, estimates, jobs, visits, invoices, contracts, brands, numbering counters, tax rates, Stripe account ids, API tokens, and webhook endpoints each carry `entity_id`. A service contract adds price, billing frequency, covered properties, equipment, included work, visit schedules, and renewal state. Its invoices and generated visits use that same `entity_id`. Stripe, when a test key is configured, gets a test-mode invoice tagged with that company. Extra work that is not in the contract scope is a separate job, not a line on the contract invoice.
 
 The active company on a session is where new customers, jobs, invoices, and contracts are written. Lists of those books show that company only. An API token is minted for one company and cannot switch. MCP tools call the same HTTP routes with that one bearer token, so they see one company.
 

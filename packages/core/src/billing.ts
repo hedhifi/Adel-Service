@@ -243,6 +243,7 @@ export async function issueInvoice(actor: Actor, id: string) {
       number: invoice.number,
       customerId: invoice.customerId,
       totalCents: summary.totalCents,
+      ...(invoice.contractId ? { contractId: invoice.contractId } : {}),
     }, invoice.entityId);
   });
   await safeDeliver();

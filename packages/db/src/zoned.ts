@@ -53,6 +53,19 @@ export function shiftDay(day: string, delta: number) {
   return shifted.toISOString().slice(0, 10);
 }
 
+/** Add calendar months, clamping the day to the target month (Jan 31 plus one month is Feb 28). */
+export function addMonths(day: string, months: number) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!match) throw new Error("Use a date like 2026-10-16.");
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1 + months;
+  const targetYear = year + Math.floor(monthIndex / 12);
+  const targetMonth = ((monthIndex % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const dayOfMonth = Math.min(Number(match[3]), lastDay);
+  return new Date(Date.UTC(targetYear, targetMonth, dayOfMonth)).toISOString().slice(0, 10);
+}
+
 export function formatDateTimeLocal(date: Date, timeZone: string) {
   const parts = zoneParts(date, timeZone);
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;

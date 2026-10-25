@@ -11,6 +11,7 @@ const links = [
   ["/requests", "Requests"],
   ["/quotes", "Estimates"],
   ["/jobs", "Jobs"],
+  ["/contracts", "Contracts"],
   ["/invoices", "Invoices"],
   ["/customers", "Customers"],
   ["/settings", "Settings"],

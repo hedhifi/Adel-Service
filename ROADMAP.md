@@ -14,13 +14,12 @@ Invoices and payments stay in Adel Service. A later sync would push issued invoi
 
 An assistant that answers the shop phone, logs a request against the right customer and property, and drafts an estimate for the office to send. The REST API, webhooks, and MCP server are the hooks for that. It is not built here.
 
-## Service contracts, still one company on this desk
+## Service contracts
 
-Adel Electric and Service Contracts already keep separate books. These contract features stay unbuilt until someone picks them up. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Recurring visit plans, renewal reminders, and flat-fee billing are in the app for whichever company owns the contract. Included work is the contract scope. Extra work is a separate job and a separate invoice. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-- Recurring visit plans for a contract
-- Renewal reminders before a contract end date
-- Contract billing: a monthly or annual flat fee, and a way to tell covered labor from labor that is billed extra
+Still unbuilt:
+
 - Intercompany billing for shared resources. When Adel Electric’s office staff, technicians, or shared infrastructure do work for Service Contracts, record it and let the office generate an internal invoice from one company to the other (labor hours by rate, and shared-cost allocations). Each invoice stays in the company that issued it and in the company that received it, so they can settle up and a future split keeps that history. Those invoices cross only through the documented link layer.
 
 ## Other gaps left on purpose

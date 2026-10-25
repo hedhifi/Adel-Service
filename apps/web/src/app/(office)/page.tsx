@@ -1,14 +1,18 @@
-import { BrandChip, Empty, PageHeader, Panel, StatusPill, TextLink } from "@/components/ui";
-import { dayLabel, jobNo, quoteNo, invoiceNo, when } from "@/lib/format";
-import { getDashboard } from "@adel/core";
+import { BrandChip, Empty, Flash, PageHeader, Panel, StatusPill, TextLink } from "@/components/ui";
+import { billingLabel, dayLabel, invoiceNo, jobNo, money, quoteNo, when } from "@/lib/format";
+import { renewContractAction } from "@/server/actions";
+import { getDashboard, maintainServiceContracts } from "@adel/core";
 import { requireOffice } from "@/server/session";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const actor = await requireOffice();
+  const query = await searchParams;
+  await maintainServiceContracts(actor);
   const { data } = await getDashboard(actor);
   return (
     <div className="space-y-6">
       <PageHeader title={dayLabel(data.day, data.timeZone)} lede={`${data.company}. What's waiting on the office.`} />
+      <Flash error={query.error} notice={query.notice} />
       <div className="grid gap-3 sm:grid-cols-4">
         {[
           ["New requests", data.counts.newRequests],
@@ -22,6 +26,31 @@ export default async function DashboardPage() {
           </Panel>
         ))}
       </div>
+      <Panel>
+        <h2 className="mb-3 font-serif text-xl">Contracts up for renewal</h2>
+        {data.upcomingRenewals.length === 0 ? <Empty>No contracts in this company end soon.</Empty> : null}
+        <ul className="space-y-3">
+          {data.upcomingRenewals.map((row) => (
+            <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <div>
+                <TextLink href={`/contracts/${row.id}`}>{row.title || row.customerName}</TextLink>
+                <p className="text-muted">
+                  {row.customerName} · ends {row.endsOn} · {money(row.priceCents)} {billingLabel(row.billingFrequency).toLowerCase()}
+                  {row.autoRenew ? " · renews on its own" : ` · ${row.daysLeft} days left`}
+                </p>
+              </div>
+              <form action={renewContractAction} className="flex items-center gap-2">
+                <input type="hidden" name="id" value={row.id} />
+                <input type="hidden" name="returnTo" value="/" />
+                <input className="w-28 rounded-md border border-line bg-card px-2 py-1" name="price" inputMode="decimal" placeholder="New price" aria-label={`New price for ${row.customerName}`} />
+                <button className="inline-flex items-center justify-center rounded-md bg-pine px-3 py-2 text-sm font-semibold text-white" type="submit">
+                  Renew
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      </Panel>
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel>
           <h2 className="mb-3 font-serif text-xl">Requests to look at</h2>

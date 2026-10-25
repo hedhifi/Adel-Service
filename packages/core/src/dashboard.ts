@@ -1,6 +1,7 @@
 import { companyToday } from "@adel/db/zoned";
 import { customers, db, invoices, quotes, requests } from "@adel/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { listUpcomingRenewals } from "./contracts";
 import { assertOffice, type Actor } from "./permissions";
 import { getCompanySettings } from "./settings";
 import { listVisits } from "./work";
@@ -48,6 +49,7 @@ export async function getDashboard(actor: Actor) {
     .orderBy(desc(invoices.issuedAt))
     .limit(6);
   const today = await listVisits(actor, { day, limit: 50 });
+  const renewals = await listUpcomingRenewals(actor);
   const [requestCount] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(requests)
@@ -74,7 +76,9 @@ export async function getDashboard(actor: Actor) {
         quotesOut: quoteCount?.total ?? 0,
         invoicesOpen: invoiceCount?.total ?? 0,
         visitsToday: today.data.length,
+        renewalsDue: renewals.data.length,
       },
+      upcomingRenewals: renewals.data,
     },
   };
 }

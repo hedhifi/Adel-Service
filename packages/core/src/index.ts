@@ -1,4 +1,20 @@
-export { createContract, exportEntity, linkCustomers, listContracts, listEntityLinks, renameEntity } from "./entities";
+export { exportEntity, linkCustomers, listEntityLinks, renameEntity } from "./entities";
+export {
+  addContractEquipment,
+  cancelContract,
+  createContract,
+  createContractSchedule,
+  getContract,
+  listContracts,
+  listUpcomingRenewals,
+  maintainServiceContracts,
+  removeContractEquipment,
+  renewContract,
+  skipContractOccurrence,
+  updateContract,
+  updateContractSchedule,
+} from "./contracts";
+export { billingMonths, daysBetween, federalHolidays, occurrenceDate, shiftOffHoliday, weekdayIndex } from "./contract-dates";
 export { switchEntity } from "./auth";
 export { AppError } from "./errors";
 export type { Actor, Membership } from "./permissions";

@@ -1207,18 +1207,109 @@ paths:
           description: Notifications
   /api/v1/contracts:
     get:
-      tags: [Entities]
-      summary: List contracts for the active company
+      tags: [Contracts]
+      summary: List service contracts for the active company
       responses:
         "200":
           description: Contracts
     post:
-      tags: [Entities]
-      summary: Create a contract in the active company
-      description: Customer, property, start, end, status, and notes. No recurring visits or billing.
+      tags: [Contracts]
+      summary: Create a service contract in the active company
+      description: Terms include start, end, price, billing frequency, covered properties, equipment, and the scope of included work. An optional visit schedule can be saved with the contract. Visit generation and billing run when the contract is active.
       responses:
         "201":
           description: Created
+  /api/v1/contracts/renewals:
+    get:
+      tags: [Contracts]
+      summary: Contracts coming up for renewal
+      description: Active contracts in this company whose end date is inside 60 days, or inside that contract's own reminder window.
+      parameters:
+        - name: withinDays
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Upcoming renewals
+  /api/v1/contracts/maintain:
+    post:
+      tags: [Contracts]
+      summary: Run schedules, billing, reminders, and renewals
+      description: Generate visits inside each schedule's rolling horizon, issue a contract invoice for each billing period that is due, remind the office before a contract ends, auto-renew when that option is on, and lapse contracts that ended without renewal. Safe to run more than once. Stripe invoices are created only with a test-mode key. Live keys are refused.
+      responses:
+        "200":
+          description: What changed
+  /api/v1/contracts/{id}:
+    get:
+      tags: [Contracts]
+      summary: Read one service contract
+      responses:
+        "200":
+          description: Contract, schedules, invoices, and renewals
+    patch:
+      tags: [Contracts]
+      summary: Update contract terms
+      description: Covered properties and equipment can be replaced here. Future unstarted visits follow a schedule edit made on the schedule route.
+      responses:
+        "200":
+          description: Updated
+  /api/v1/contracts/{id}/renew:
+    post:
+      tags: [Contracts]
+      summary: Renew a contract
+      description: Extends the end date by the renewal term. Send priceCents to change the price. Works for an active or lapsed contract.
+      responses:
+        "200":
+          description: Renewed
+  /api/v1/contracts/{id}/cancel:
+    post:
+      tags: [Contracts]
+      summary: Cancel a contract
+      description: Stops future visits that have not started, and stops billing. Visits already underway are left as they are.
+      responses:
+        "200":
+          description: Canceled
+  /api/v1/contracts/{id}/schedules:
+    post:
+      tags: [Contracts]
+      summary: Add a recurring visit schedule
+      description: Monthly, quarterly, annual, or a custom interval. Visits land on the shared dispatch board, labeled with this company. Weekends and US federal holidays move to the next weekday.
+      responses:
+        "201":
+          description: Schedule saved
+  /api/v1/contracts/{id}/schedules/{scheduleId}:
+    patch:
+      tags: [Contracts]
+      summary: Edit a visit schedule
+      description: Future visits that have not started and were not edited by hand move to the new pattern. Skipped dates stay skipped. Completed visits stay put.
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Updated
+  /api/v1/contracts/{id}/occurrences/{occurrenceId}/skip:
+    post:
+      tags: [Contracts]
+      summary: Skip one generated visit
+      description: Cancels that visit if it has not started, and does not generate it again.
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - name: occurrenceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Skipped
   /api/v1/entities:
     patch:
       tags: [Entities]
