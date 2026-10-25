@@ -10,9 +10,9 @@ Technicians install the web app on a phone today (Add to Home Screen). A native 
 
 Invoices and payments stay in Adel Service. A later sync would push issued invoices and received payments into the company QuickBooks file and pull payment status back. It should not become a second ledger inside this app.
 
-## AI receptionist
+## AI receptionist, live telephony
 
-An assistant that answers the shop phone, logs a request against the right customer and property, and drafts an estimate for the office to send. The REST API, webhooks, and MCP server are the hooks for that. It is not built here.
+The sandbox receptionist is in the app: phone and website chat, English and Spanish, requests, tentative visits, and safety handoff. It records SMS and calls and does not send them. A live phone number, a live SMS sender, and a model translator wait until Alan approves a provider. See the receptionist section in the README.
 
 ## Service contracts, still one company on this desk
 

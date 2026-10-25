@@ -36,6 +36,7 @@ const {
   properties,
   quoteLineItems,
   quotes,
+  receptionistSettings,
   requests,
   users,
   visitForms,
@@ -52,7 +53,8 @@ if (existing.length && process.env.SEED_RESET !== "yes") {
   await sql.end();
   process.exit(0);
 }
-if (existing.length) await truncateAll();
+// Migrations insert the two companies. A first seed replaces those rows with the demo.
+await truncateAll();
 
 const passwordHash = await bcrypt.hash("Fieldnote-demo-2026", 10);
 const timeZone = "America/New_York";
@@ -453,6 +455,33 @@ await db.insert(apiTokens).values({
   createdById: alan.id,
 });
 
+await db.insert(receptionistSettings).values([
+  {
+    entityId: ADEL_ENTITY_ID,
+    enabled: true,
+    greetingEn:
+      "Thanks for contacting Adel Electric. I can take your name, a phone number, the service address, and what's going on. If there's an open time, I can hold a tentative visit.",
+    greetingEs:
+      "Gracias por comunicarse con Adel Electric. Puedo anotar su nombre, un teléfono, la dirección del servicio y qué está pasando. Si hay un horario libre, puedo apartar una visita tentativa.",
+    hoursStart: "08:00",
+    hoursEnd: "17:00",
+    hoursDays: [1, 2, 3, 4, 5],
+    onCallUserId: marco.id,
+  },
+  {
+    entityId: SERVICE_ENTITY_ID,
+    enabled: true,
+    greetingEn:
+      "Thanks for contacting Service Contracts. I can take your name, a phone number, the service address, and what's going on. If there's an open time, I can hold a tentative visit.",
+    greetingEs:
+      "Gracias por comunicarse con Service Contracts. Puedo anotar su nombre, un teléfono, la dirección del servicio y qué está pasando. Si hay un horario libre, puedo apartar una visita tentativa.",
+    hoursStart: "08:00",
+    hoursEnd: "17:00",
+    hoursDays: [1, 2, 3, 4, 5],
+    onCallUserId: sofia.id,
+  },
+]);
+
 await db.insert(speechTerms).values(
   [
     "Crestron",
@@ -492,5 +521,6 @@ console.log("  marco.vell@adel.example       tech");
 console.log("  sofia.brennan@adel.example    tech");
 console.log(`Demo admin API token (also used by the MCP server): ${demoSecret}`);
 console.log(`Helen Cho estimate link: /q/${helenQuote.publicToken}`);
+console.log("Website chat: /embed/adel-electric and /embed/service-contracts");
 
 await sql.end();

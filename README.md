@@ -121,6 +121,18 @@ Arrival inside 150 meters can set the visit to on site. Leaving records a depart
 
 **Company policy point for counsel review. This is not legal advice.**
 
+### Receptionist
+
+The office opens **Receptionist** for the conversation log and **Receptionist settings** for the greeting, business hours, on-call person, and the on/off switch. Those settings belong to the company selected in the sidebar. Adel Electric and Service Contracts do not share them.
+
+The website chat for a company is `/embed/adel-electric` or `/embed/service-contracts` (`?lang=es` for Spanish). The settings page shows an iframe snippet for the active company. Phone calls use the same flow through `POST /api/v1/public/receptionist/conversations` with `"channel": "phone"`. There is no live phone number in this repo.
+
+The receptionist asks for a name, phone, service address, and the problem. It matches a customer and property in that company only, logs a request there, and can hold a tentative visit from that company's open dispatch times. A phone booking records the SMS that would have been sent. A website booking records the chat confirmation. Neither is delivered to a carrier.
+
+Electrical safety issues (no power, sparks, a burning smell, shock, smoke, fire) stop the booking script. The caller is told to stay clear, not touch the equipment, get out if there is fire or smoke, and call emergency services if someone is hurt or there is a fire. The app records a sandbox call and a sandbox SMS to that company's on-call person. It does not give repair steps.
+
+`RECEPTIONIST_SMS_PROVIDER`, `RECEPTIONIST_VOICE_PROVIDER`, and `RECEPTIONIST_TRANSLATION_PROVIDER` stay `sandbox`. Setting SMS or voice to `twilio` still sends nothing: the adapter refuses until Alan approves a live provider. Spanish transcripts store an English translation from the sandbox glossary. Webhooks `request.created`, `visit.booked`, and `safety.escalated` fire on that company's endpoints.
+
 ## Assumptions (v1)
 
 - Adel Electric and Service Contracts are two companies in one database. They share the servers, the office desk, and the tech phone app. Their books stay separate. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

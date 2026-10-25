@@ -40,6 +40,9 @@
       "name": "Public"
     },
     {
+      "name": "Receptionist"
+    },
+    {
       "name": "Location"
     },
     {
@@ -1686,6 +1689,194 @@
         }
       }
     },
+    "/api/v1/public/receptionist/conversations": {
+      "post": {
+        "tags": [
+          "Receptionist"
+        ],
+        "security": [],
+        "summary": "Start a phone or website receptionist conversation",
+        "description": "Sandbox only. `entitySlug` is `adel-electric` or `service-contracts`.\nThe conversation, any request, and any visit stay in that one company.\nWhen the receptionist is off, no request is created.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "entitySlug",
+                  "channel",
+                  "language"
+                ],
+                "properties": {
+                  "entitySlug": {
+                    "type": "string"
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "phone",
+                      "web"
+                    ]
+                  },
+                  "language": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "es"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Greeting and conversation"
+          }
+        }
+      }
+    },
+    "/api/v1/public/receptionist/conversations/{id}/messages": {
+      "post": {
+        "tags": [
+          "Receptionist"
+        ],
+        "security": [],
+        "summary": "Send the caller's next message",
+        "description": "Collects name, phone, service address, and the problem. Matches a customer\nand property in that company only. Offers open dispatch slots and can book\na tentative visit. Phone bookings record a sandbox SMS. Website bookings\nrecord a sandbox chat confirmation. Electrical safety issues record a\nsandbox call and SMS to the on-call person and do not send either.\nEmits `request.created`, `visit.booked`, or `safety.escalated` when those happen.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated transcript"
+          }
+        }
+      }
+    },
+    "/api/v1/receptionist/conversations": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Conversation log for the active company",
+        "description": "Office only. A token for one company cannot read the other company's conversations.",
+        "responses": {
+          "200": {
+            "description": "Conversations, each labeled with its company"
+          }
+        }
+      }
+    },
+    "/api/v1/receptionist/conversations/{id}": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Transcript, English translation, outcome, and sandbox messages",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation"
+          },
+          "404": {
+            "description": "Missing, or it belongs to the other company"
+          }
+        }
+      }
+    },
+    "/api/v1/receptionist/settings": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Receptionist settings for the active company",
+        "responses": {
+          "200": {
+            "description": "Greeting, hours, on-call person, and on/off"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Update receptionist settings for the active company",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "greetingEn": {
+                    "type": "string"
+                  },
+                  "greetingEs": {
+                    "type": "string"
+                  },
+                  "hoursStart": {
+                    "type": "string",
+                    "example": "08:00"
+                  },
+                  "hoursEnd": {
+                    "type": "string",
+                    "example": "17:00"
+                  },
+                  "hoursDays": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 6
+                    }
+                  },
+                  "onCallUserId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated settings"
+          }
+        }
+      }
+    },
     "/api/v1/webhooks": {
       "get": {
         "tags": [
@@ -1730,9 +1921,11 @@
                         "request.created",
                         "quote.approved",
                         "job.scheduled",
+                        "visit.booked",
                         "visit.completed",
                         "invoice.issued",
-                        "payment.received"
+                        "payment.received",
+                        "safety.escalated"
                       ]
                     }
                   }

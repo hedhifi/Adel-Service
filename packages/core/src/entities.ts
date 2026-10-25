@@ -11,10 +11,14 @@ import {
   properties,
   quotes,
   requests,
+  receptionistConversations,
+  receptionistMessages,
+  receptionistSandboxMessages,
+  receptionistSettings,
   visits,
   webhookEndpoints,
 } from "@adel/db";
-import { asc, eq, or } from "drizzle-orm";
+import { asc, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { AppError, notFound } from "./errors";
 import { optionalText, parse } from "./parse";
@@ -188,6 +192,16 @@ export async function exportEntity(actor: Actor) {
         .from(entityLinks)
         .where(or(eq(entityLinks.fromEntityId, entityId), eq(entityLinks.toEntityId, entityId))),
     ]);
+  const [receptionistSetting] = await db.select().from(receptionistSettings).where(eq(receptionistSettings.entityId, entityId));
+  const receptionistConversationRows = await db.select().from(receptionistConversations).where(eq(receptionistConversations.entityId, entityId));
+  const conversationIds = receptionistConversationRows.map((row) => row.id);
+  const receptionistMessageRows = conversationIds.length
+    ? await db.select().from(receptionistMessages).where(inArray(receptionistMessages.conversationId, conversationIds))
+    : [];
+  const receptionistSandboxRows = await db
+    .select()
+    .from(receptionistSandboxMessages)
+    .where(eq(receptionistSandboxMessages.entityId, entityId));
   return {
     data: {
       entity: { id: entity.id, name: entity.name, slug: entity.slug, taxRateBps: entity.taxRateBps, taxLabel: entity.taxLabel, stripeAccountId: entity.stripeAccountId },
@@ -202,6 +216,12 @@ export async function exportEntity(actor: Actor) {
       payments: paymentRows,
       contracts: contractRows,
       webhooks: webhookRows,
+      receptionist: {
+        settings: receptionistSetting ?? null,
+        conversations: receptionistConversationRows,
+        messages: receptionistMessageRows,
+        sandboxMessages: receptionistSandboxRows,
+      },
       links: linkRows.map((link) => ({
         id: link.id,
         kind: link.kind,

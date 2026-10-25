@@ -39,6 +39,8 @@ Shared dispatch (`/schedule` for a signed-in office session) and the tech app li
 
 User login, the speech dictionary, device tokens, location points, and the tracking-hours policy stay shared. They are not books. Geofence rows point at one visit, which already belongs to one company.
 
+The receptionist is per company. `receptionist_settings`, `receptionist_conversations`, and `receptionist_sandbox_messages` each carry `entity_id`. Messages hang off one conversation. A phone line or website widget names one company (`adel-electric` or `service-contracts`) before the first write. Customer and property matching reads that company only. The request, the job, and the tentative visit are inserted with that same `entity_id`. Nothing in the flow writes a second copy into the other company. Open slots are gaps on that company's own visits, the rows dispatch shows for that company. They do not read the other company's customers or visits. The office log and settings follow the active company, and every log row shows that company's name. Export includes that company's receptionist settings, conversations, messages, and sandbox outbox.
+
 ## What a later split copies
 
 Copy that company’s `entities` row, its memberships, and every business table filtered by `entity_id`, including child rows that hang off those parents (line items, payments, notes, photos, checklist answers). Copy `entity_links` rows that name that company, keeping the other side as an endpoint id. Leave the other company’s rows in the old database.

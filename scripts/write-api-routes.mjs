@@ -560,4 +560,51 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
 `,
 );
 
+write(
+  "v1/public/receptionist/conversations/route.ts",
+  `
+import { startReceptionistConversation } from "@adel/core";
+import { handle, readJson } from "@/lib/http";
+
+export const POST = handle(async (req) => Response.json(await startReceptionistConversation(await readJson(req)), { status: 201 }));
+`,
+);
+
+write(
+  "v1/public/receptionist/conversations/[id]/messages/route.ts",
+  `
+import { postReceptionistMessage } from "@adel/core";
+import { handle, readJson } from "@/lib/http";
+
+export const POST = handle(async (req, { params }) => Response.json(await postReceptionistMessage(params.id, await readJson(req))));
+`,
+);
+
+write(
+  "v1/receptionist/conversations/route.ts",
+  jsonRoute(
+    `import { listReceptionistConversations } from "@adel/core";`,
+    `export const GET = handle(async (req) => Response.json(await listReceptionistConversations(await actorFromRequest(req))));`,
+  ),
+);
+
+write(
+  "v1/receptionist/conversations/[id]/route.ts",
+  jsonRoute(
+    `import { getReceptionistConversation } from "@adel/core";`,
+    `export const GET = handle(async (req, { params }) => Response.json(await getReceptionistConversation(await actorFromRequest(req), params.id)));`,
+  ),
+);
+
+write(
+  "v1/receptionist/settings/route.ts",
+  jsonRoute(
+    `import { getReceptionistSettings, updateReceptionistSettings } from "@adel/core";`,
+    `
+export const GET = handle(async (req) => Response.json(await getReceptionistSettings(await actorFromRequest(req))));
+export const PATCH = handle(async (req) => Response.json(await updateReceptionistSettings(await actorFromRequest(req), await readJson(req))));
+`,
+  ),
+);
+
 console.log("API routes written");
