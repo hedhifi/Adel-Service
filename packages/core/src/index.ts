@@ -124,3 +124,19 @@ export {
   voiceStatusMessage,
 } from "./speech";
 export type { DictationLanguage } from "./speech";
+export {
+  getReceptionistConversation,
+  getReceptionistSettings,
+  listOpenSlots,
+  listReceptionistConversations,
+  postReceptionistMessage,
+  startReceptionistConversation,
+  updateReceptionistSettings,
+} from "./receptionist";
+export {
+  TwilioMessagingProvider,
+  isElectricalEmergency,
+  messagingProvider,
+  translateSpanish,
+} from "./receptionist-providers";
+export type { MessagingProvider, OutboundMessage, ProviderReceipt } from "./receptionist-providers";

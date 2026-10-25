@@ -34,6 +34,7 @@ import {
   sendQuote,
   setUserActive,
   updateCompanySettings,
+  updateReceptionistSettings,
   updateJob,
   updateRequest,
   updateVisit,
@@ -606,6 +607,30 @@ export async function updateSettingsAction(formData: FormData) {
   } catch (err) {
     if (isRedirect(err)) throw err;
     bail("/settings", err);
+  }
+}
+
+export async function saveReceptionistSettingsAction(formData: FormData) {
+  const actor = await requireOffice();
+  const days = formData
+    .getAll("hoursDays")
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
+  const onCall = text(formData, "onCallUserId");
+  try {
+    await updateReceptionistSettings(actor, {
+      enabled: formData.get("enabled") === "on",
+      greetingEn: text(formData, "greetingEn"),
+      greetingEs: text(formData, "greetingEs"),
+      hoursStart: text(formData, "hoursStart"),
+      hoursEnd: text(formData, "hoursEnd"),
+      hoursDays: days,
+      onCallUserId: onCall || null,
+    });
+    redirect("/receptionist/settings?notice=Receptionist settings saved");
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail("/receptionist/settings", err);
   }
 }
 

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC = [
   /^\/login$/,
   /^\/q\//,
+  /^\/embed\//,
   /^\/api\/auth\/login$/,
   /^\/api\/health$/,
   /^\/api\/openapi$/,

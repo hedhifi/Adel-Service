@@ -628,3 +628,89 @@ export const entityLinks = pgTable(
   },
   (table) => [index("entity_links_from_idx").on(table.fromEntityId), index("entity_links_to_idx").on(table.toEntityId)],
 );
+
+export type ReceptionistSlot = {
+  index: number;
+  start: string;
+  end: string;
+  label: string;
+  labelEs: string;
+};
+
+/** One company's phone and website receptionist. Not shared across entities. */
+export const receptionistSettings = pgTable("receptionist_settings", {
+  entityId: uuid("entity_id")
+    .primaryKey()
+    .references(() => entities.id),
+  enabled: boolean("enabled").notNull().default(true),
+  greetingEn: text("greeting_en").notNull(),
+  greetingEs: text("greeting_es").notNull(),
+  hoursStart: text("hours_start").notNull().default("08:00"),
+  hoursEnd: text("hours_end").notNull().default("17:00"),
+  hoursDays: integer("hours_days").array().notNull(),
+  onCallUserId: uuid("on_call_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const receptionistConversations = pgTable(
+  "receptionist_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    channel: text("channel").notNull(),
+    language: text("language").notNull(),
+    step: text("step").notNull(),
+    outcome: text("outcome").notNull(),
+    callerName: text("caller_name"),
+    callerPhone: text("caller_phone"),
+    serviceAddress: text("service_address"),
+    problem: text("problem"),
+    customerId: uuid("customer_id").references(() => customers.id),
+    propertyId: uuid("property_id").references(() => properties.id),
+    requestId: uuid("request_id").references(() => requests.id),
+    jobId: uuid("job_id").references(() => jobs.id),
+    visitId: uuid("visit_id").references(() => visits.id),
+    offeredSlots: jsonb("offered_slots").$type<ReceptionistSlot[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("receptionist_conversations_entity_idx").on(table.entityId, table.createdAt)],
+);
+
+export const receptionistMessages = pgTable(
+  "receptionist_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => receptionistConversations.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+    body: text("body").notNull(),
+    bodyEn: text("body_en").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("receptionist_messages_conversation_idx").on(table.conversationId, table.createdAt)],
+);
+
+/** Outbound SMS, voice handoff, and chat confirmations that were recorded and not sent. */
+export const receptionistSandboxMessages = pgTable(
+  "receptionist_sandbox_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    conversationId: uuid("conversation_id").references(() => receptionistConversations.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    kind: text("kind").notNull(),
+    toPhone: text("to_phone"),
+    body: text("body").notNull(),
+    bodyEn: text("body_en").notNull(),
+    provider: text("provider").notNull(),
+    delivered: boolean("delivered").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("receptionist_sandbox_entity_idx").on(table.entityId, table.createdAt)],
+);

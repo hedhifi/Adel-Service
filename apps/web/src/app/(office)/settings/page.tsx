@@ -30,6 +30,9 @@ export default async function SettingsPage({
         <Link className="font-semibold text-pine" href="/settings/terms">
           Speech dictionary
         </Link>
+        <Link className="font-semibold text-pine" href="/receptionist/settings">
+          Receptionist
+        </Link>
         <a className="font-semibold text-pine" href="/api/openapi">
           OpenAPI
         </a>

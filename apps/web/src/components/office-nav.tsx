@@ -9,6 +9,7 @@ const links = [
   ["/schedule", "Dispatch"],
   ["/map", "Live map"],
   ["/requests", "Requests"],
+  ["/receptionist", "Receptionist"],
   ["/quotes", "Estimates"],
   ["/jobs", "Jobs"],
   ["/invoices", "Invoices"],

@@ -11,9 +11,11 @@ export const WEBHOOK_EVENTS = [
   "request.created",
   "quote.approved",
   "job.scheduled",
+  "visit.booked",
   "visit.completed",
   "invoice.issued",
   "payment.received",
+  "safety.escalated",
 ] as const;
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
