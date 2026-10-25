@@ -37,6 +37,9 @@ export const TOOL_NAMES = [
   "create_invoice",
   "issue_invoice",
   "record_payment",
+  "list_contracts",
+  "create_contract",
+  "renew_contract",
   "list_terms",
   "create_term",
   "update_term",
@@ -227,6 +230,45 @@ export function registerTools(server: McpServer) {
       },
     },
     async ({ invoiceId, ...rest }) => call("POST", `/api/v1/invoices/${invoiceId}/payments`, rest),
+  );
+  server.registerTool(
+    "list_contracts",
+    { description: "List service contracts for the active company.", inputSchema: {} },
+    async () => call("GET", "/api/v1/contracts"),
+  );
+  server.registerTool(
+    "create_contract",
+    {
+      description: "Create a service contract in the active company. Price is cents per bill. Optional schedule generates visits into dispatch.",
+      inputSchema: {
+        customerId: z.string().uuid(),
+        propertyId: z.string().uuid(),
+        title: z.string().optional(),
+        startsOn: z.string(),
+        endsOn: z.string().nullable().optional(),
+        priceCents: z.number().int().optional(),
+        billingFrequency: z.enum(["monthly", "quarterly", "annual", "custom"]).optional(),
+        billingIntervalCount: z.number().int().optional(),
+        scope: z.string().optional(),
+        notes: z.string().optional(),
+        autoRenew: z.boolean().optional(),
+        renewalTermMonths: z.number().int().optional(),
+        reminderDays: z.number().int().optional(),
+      },
+    },
+    async (input) => call("POST", "/api/v1/contracts", input),
+  );
+  server.registerTool(
+    "renew_contract",
+    {
+      description: "Renew an active or lapsed service contract. Omit priceCents to keep the current price.",
+      inputSchema: {
+        contractId: z.string().uuid(),
+        priceCents: z.number().int().optional(),
+        termMonths: z.number().int().optional(),
+      },
+    },
+    async ({ contractId, ...rest }) => call("POST", `/api/v1/contracts/${contractId}/renew`, rest),
   );
   server.registerTool(
     "list_terms",

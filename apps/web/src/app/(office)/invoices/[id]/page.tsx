@@ -1,6 +1,6 @@
 import { CardPayment } from "@/components/card-payment";
 import { PrintButton } from "@/components/print-button";
-import { Flash, PageHeader, StatusPill, buttonClass, ghostClass, inputClass } from "@/components/ui";
+import { Flash, PageHeader, StatusPill, TextLink, buttonClass, ghostClass, inputClass } from "@/components/ui";
 import { invoiceNo, money, when } from "@/lib/format";
 import { issueInvoiceAction, manualPaymentAction, voidInvoiceAction } from "@/server/actions";
 import { requireOffice } from "@/server/session";
@@ -38,6 +38,11 @@ export default async function InvoicePage({
       />
       <Flash error={query.error} notice={query.notice} />
       <p className="text-sm text-muted">{settings.shopAddress}</p>
+      {data.contractId ? (
+        <p className="text-sm">
+          <TextLink href={`/contracts/${data.contractId}`}>Service contract</TextLink>
+        </p>
+      ) : null}
       <table className="w-full text-sm">
         <tbody>
           {data.lineItems.map((line) => (

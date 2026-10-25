@@ -3,12 +3,13 @@ import { dayLabel, when } from "@/lib/format";
 import { reassignVisitAction } from "@/server/actions";
 import { requireOffice } from "@/server/session";
 import { shiftDay } from "@adel/db/zoned";
-import { getSchedule } from "@adel/core";
+import { getSchedule, maintainServiceContracts } from "@adel/core";
 import Link from "next/link";
 
 export default async function SchedulePage({ searchParams }: { searchParams: Promise<{ day?: string; error?: string }> }) {
   const actor = await requireOffice();
   const query = await searchParams;
+  await maintainServiceContracts(actor);
   const { data } = await getSchedule(actor, query.day);
   const columns = [
     { id: "", name: "Unassigned" },

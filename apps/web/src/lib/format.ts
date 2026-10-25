@@ -37,6 +37,13 @@ export function invoiceNo(n: number) {
   return `INV-${n}`;
 }
 
+export function billingLabel(frequency: string, count = 1) {
+  if (frequency === "monthly") return "Monthly";
+  if (frequency === "quarterly") return "Quarterly";
+  if (frequency === "annual") return "Annual";
+  return `Every ${count} months`;
+}
+
 export function address(parts: { line1: string; line2?: string | null; city: string; state: string; postalCode: string }) {
   return [parts.line1, parts.line2, `${parts.city}, ${parts.state} ${parts.postalCode}`].filter(Boolean).join(", ");
 }

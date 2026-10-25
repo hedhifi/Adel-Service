@@ -124,6 +124,7 @@ Arrival inside 150 meters can set the visit to on site. Leaving records a depart
 ## Assumptions (v1)
 
 - Adel Electric and Service Contracts are two companies in one database. They share the servers, the office desk, and the tech phone app. Their books stay separate. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- A service contract belongs to one company. It covers that company's locations and equipment, describes the included work, and can place a repeating visit on the shared dispatch board. The flat fee is invoiced on that company's books. Stripe receives an invoice only in test mode. Renewals, reminders, lapses, and cancellations stay in that company. Extra work is a normal job.
 - Default tax is 7% (700 basis points), labeled as an estimate. Materials are taxable. Labor is not. The rate is snapshotted onto each estimate and invoice.
 - The shop clock is `America/New_York`. `America/Chicago` is the other option in settings.
 - The office can approve a draft or a sent estimate in person. A customer can approve or decline only from the link, and only while the estimate is sent and inside 30 days.

@@ -10,6 +10,10 @@ import {
   clockVisit,
   completeVisit,
   convertQuote,
+  addContractEquipment,
+  cancelContract,
+  createContract,
+  createContractSchedule,
   createCustomer,
   createInvoice,
   createJob,
@@ -27,13 +31,18 @@ import {
   loginWithPassword,
   logoutSession,
   recordManualPayment,
+  removeContractEquipment,
+  renewContract,
   revokeApiToken,
   saveSignature,
   saveVisitForm,
   scheduleVisit,
   sendQuote,
+  skipContractOccurrence,
   setUserActive,
   updateCompanySettings,
+  updateContract,
+  updateContractSchedule,
   updateJob,
   updateRequest,
   updateVisit,
@@ -649,6 +658,225 @@ export async function deleteTermAction(formData: FormData) {
 export async function setDictationLanguageAction(language: "en" | "es") {
   const actor = await requireUser();
   await setDictationLanguage(actor, { language });
+}
+
+function dollars(formData: FormData, name: string) {
+  const raw = text(formData, name);
+  if (!raw) return undefined;
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) throw new AppError(400, "Use a price like 150 or 150.00.", "invalid_input");
+  return Math.round(Number(raw) * 100);
+}
+
+function whole(formData: FormData, name: string) {
+  const raw = text(formData, name);
+  if (!raw) return undefined;
+  if (!/^\d+$/.test(raw)) throw new AppError(400, "Use a whole number.", "invalid_input");
+  return Number(raw);
+}
+
+function contractBack(formData: FormData, id: string) {
+  const back = text(formData, "returnTo");
+  if (back.startsWith("/") && !back.startsWith("//")) return back;
+  return `/contracts/${id}`;
+}
+
+export async function createContractAction(formData: FormData) {
+  const actor = await requireOffice();
+  try {
+    const frequency = text(formData, "scheduleFrequency");
+    const equipmentName = text(formData, "equipmentName");
+    const created = await createContract(actor, {
+      customerId: text(formData, "customerId"),
+      propertyId: text(formData, "propertyId"),
+      title: text(formData, "title"),
+      startsOn: text(formData, "startsOn"),
+      endsOn: text(formData, "endsOn") || null,
+      status: "active",
+      priceCents: dollars(formData, "price") ?? 0,
+      billingFrequency: text(formData, "billingFrequency") || "annual",
+      billingIntervalCount: whole(formData, "billingIntervalCount") ?? 1,
+      scope: text(formData, "scope"),
+      notes: text(formData, "notes"),
+      autoRenew: formData.get("autoRenew") === "yes",
+      renewalTermMonths: whole(formData, "renewalTermMonths") ?? 12,
+      reminderDays: whole(formData, "reminderDays") ?? 30,
+      equipment: equipmentName
+        ? [{ name: equipmentName, location: text(formData, "equipmentLocation") || null, serial: text(formData, "equipmentSerial") || null }]
+        : undefined,
+      schedule: frequency
+        ? {
+            frequency,
+            intervalCount: whole(formData, "scheduleIntervalCount") ?? 1,
+            intervalUnit: text(formData, "scheduleIntervalUnit") || "month",
+            anchorOn: text(formData, "anchorOn") || text(formData, "startsOn"),
+            localStart: text(formData, "localStart") || "09:00",
+            durationMinutes: whole(formData, "durationMinutes") ?? 60,
+            technicianId: text(formData, "technicianId") || null,
+            horizonDays: whole(formData, "horizonDays") ?? 90,
+            title: text(formData, "scheduleTitle") || text(formData, "title") || "Service visit",
+            instructions: text(formData, "scheduleInstructions"),
+          }
+        : undefined,
+    });
+    redirect(`/contracts/${created.data.id}`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail("/contracts/new", err);
+  }
+}
+
+export async function updateContractTermsAction(formData: FormData) {
+  const actor = await requireOffice();
+  const id = text(formData, "id");
+  try {
+    await updateContract(actor, id, {
+      title: text(formData, "title"),
+      startsOn: text(formData, "startsOn"),
+      endsOn: text(formData, "endsOn") || null,
+      priceCents: dollars(formData, "price") ?? 0,
+      billingFrequency: text(formData, "billingFrequency") || "annual",
+      billingIntervalCount: whole(formData, "billingIntervalCount") ?? 1,
+      scope: text(formData, "scope"),
+      notes: text(formData, "notes"),
+      autoRenew: formData.get("autoRenew") === "yes",
+      renewalTermMonths: whole(formData, "renewalTermMonths") ?? 12,
+      reminderDays: whole(formData, "reminderDays") ?? 30,
+    });
+    redirect(`/contracts/${id}?notice=Terms saved`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(`/contracts/${id}`, err);
+  }
+}
+
+export async function saveCoveredPropertiesAction(formData: FormData) {
+  const actor = await requireOffice();
+  const id = text(formData, "id");
+  try {
+    const propertyIds = formData.getAll("propertyIds").map((value) => String(value)).filter(Boolean);
+    if (!propertyIds.length) throw new AppError(400, "Cover at least one location.", "invalid_input");
+    await updateContract(actor, id, { propertyId: propertyIds[0], propertyIds });
+    redirect(`/contracts/${id}?notice=Covered locations saved`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(`/contracts/${id}`, err);
+  }
+}
+
+export async function addEquipmentAction(formData: FormData) {
+  const actor = await requireOffice();
+  const id = text(formData, "id");
+  try {
+    await addContractEquipment(actor, id, {
+      name: text(formData, "name"),
+      propertyId: text(formData, "propertyId") || null,
+      location: text(formData, "location") || null,
+      serial: text(formData, "serial") || null,
+      notes: text(formData, "notes"),
+    });
+    redirect(`/contracts/${id}?notice=Equipment added`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(`/contracts/${id}`, err);
+  }
+}
+
+export async function removeEquipmentAction(formData: FormData) {
+  const actor = await requireOffice();
+  const id = text(formData, "id");
+  try {
+    await removeContractEquipment(actor, id, text(formData, "equipmentId"));
+    redirect(`/contracts/${id}?notice=Equipment removed`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(`/contracts/${id}`, err);
+  }
+}
+
+export async function createScheduleAction(formData: FormData) {
+  const actor = await requireOffice();
+  const id = text(formData, "id");
+  try {
+    await createContractSchedule(actor, id, {
+      frequency: text(formData, "frequency"),
+      intervalCount: whole(formData, "intervalCount") ?? 1,
+      intervalUnit: text(formData, "intervalUnit") || "month",
+      anchorOn: text(formData, "anchorOn"),
+      localStart: text(formData, "localStart") || "09:00",
+      durationMinutes: whole(formData, "durationMinutes") ?? 60,
+      technicianId: text(formData, "technicianId") || null,
+      horizonDays: whole(formData, "horizonDays") ?? 90,
+      title: text(formData, "title"),
+      instructions: text(formData, "instructions"),
+    });
+    redirect(`/contracts/${id}?notice=Schedule added`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(`/contracts/${id}`, err);
+  }
+}
+
+export async function updateScheduleAction(formData: FormData) {
+  const actor = await requireOffice();
+  const id = text(formData, "id");
+  try {
+    await updateContractSchedule(actor, id, text(formData, "scheduleId"), {
+      frequency: text(formData, "frequency"),
+      intervalCount: whole(formData, "intervalCount") ?? 1,
+      intervalUnit: text(formData, "intervalUnit") || "month",
+      anchorOn: text(formData, "anchorOn"),
+      localStart: text(formData, "localStart") || "09:00",
+      durationMinutes: whole(formData, "durationMinutes") ?? 60,
+      technicianId: text(formData, "technicianId") || null,
+      horizonDays: whole(formData, "horizonDays") ?? 90,
+      title: text(formData, "title"),
+      instructions: text(formData, "instructions"),
+      active: formData.get("active") === "yes",
+    });
+    redirect(`/contracts/${id}?notice=Schedule updated`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(`/contracts/${id}`, err);
+  }
+}
+
+export async function skipOccurrenceAction(formData: FormData) {
+  const actor = await requireOffice();
+  const id = text(formData, "id");
+  try {
+    await skipContractOccurrence(actor, id, text(formData, "occurrenceId"), { reason: text(formData, "reason") || undefined });
+    redirect(`/contracts/${id}?notice=Visit skipped`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(`/contracts/${id}`, err);
+  }
+}
+
+export async function renewContractAction(formData: FormData) {
+  const actor = await requireOffice();
+  const id = text(formData, "id");
+  try {
+    await renewContract(actor, id, {
+      priceCents: dollars(formData, "price"),
+      termMonths: whole(formData, "termMonths"),
+    });
+    redirect(`${contractBack(formData, id)}?notice=Contract renewed`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(contractBack(formData, id), err);
+  }
+}
+
+export async function cancelContractAction(formData: FormData) {
+  const actor = await requireOffice();
+  const id = text(formData, "id");
+  try {
+    await cancelContract(actor, id);
+    redirect(`/contracts/${id}?notice=Contract canceled`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    bail(`/contracts/${id}`, err);
+  }
 }
 
 export async function suggestTermAction(formData: FormData) {

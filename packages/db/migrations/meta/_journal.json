@@ -43,6 +43,13 @@
       "when": 1760675600000,
       "tag": "0005_drop_hed",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1760682000000,
+      "tag": "0006_service_contracts",
+      "breakpoints": true
     }
   ]
 }

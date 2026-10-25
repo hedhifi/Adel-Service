@@ -1,5 +1,11 @@
 import {
   brands,
+  contractCharges,
+  contractEquipment,
+  contractProperties,
+  contractReminders,
+  contractRenewals,
+  contractSchedules,
   contracts,
   customers,
   db,
@@ -11,13 +17,14 @@ import {
   properties,
   quotes,
   requests,
+  scheduleOccurrences,
   visits,
   webhookEndpoints,
 } from "@adel/db";
-import { asc, eq, or } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { z } from "zod";
 import { AppError, notFound } from "./errors";
-import { optionalText, parse } from "./parse";
+import { parse } from "./parse";
 import { assertOffice, type Actor } from "./permissions";
 import { assertActiveBook } from "./scope";
 
@@ -32,62 +39,6 @@ export async function renameEntity(actor: Actor, input: unknown) {
     .returning();
   if (!row) throw notFound("Company not found.");
   return { data: { id: row.id, name: row.name, slug: row.slug } };
-}
-
-const contractInput = z.object({
-  customerId: z.string().uuid(),
-  propertyId: z.string().uuid(),
-  startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  status: z.enum(["draft", "active", "ended"]).optional(),
-  notes: optionalText,
-});
-
-export async function listContracts(actor: Actor) {
-  assertOffice(actor);
-  const rows = await db
-    .select({
-      id: contracts.id,
-      customerId: contracts.customerId,
-      customerName: customers.name,
-      propertyId: contracts.propertyId,
-      propertyLabel: properties.label,
-      startsOn: contracts.startsOn,
-      endsOn: contracts.endsOn,
-      status: contracts.status,
-      notes: contracts.notes,
-      entityId: contracts.entityId,
-    })
-    .from(contracts)
-    .innerJoin(customers, eq(customers.id, contracts.customerId))
-    .innerJoin(properties, eq(properties.id, contracts.propertyId))
-    .where(eq(contracts.entityId, actor.entityId))
-    .orderBy(asc(contracts.startsOn));
-  return { data: rows };
-}
-
-export async function createContract(actor: Actor, input: unknown) {
-  assertOffice(actor);
-  const data = parse(contractInput, input);
-  const [customer] = await db.select().from(customers).where(eq(customers.id, data.customerId));
-  if (!customer) throw notFound("Customer not found.");
-  assertActiveBook(actor, customer.entityId);
-  const [property] = await db.select().from(properties).where(eq(properties.id, data.propertyId));
-  if (!property || property.customerId !== customer.id) throw new AppError(400, "That service location is not on this customer.", "property_mismatch");
-  assertActiveBook(actor, property.entityId);
-  const [row] = await db
-    .insert(contracts)
-    .values({
-      entityId: actor.entityId,
-      customerId: customer.id,
-      propertyId: property.id,
-      startsOn: data.startsOn,
-      endsOn: data.endsOn ?? null,
-      status: data.status ?? "draft",
-      notes: data.notes,
-    })
-    .returning();
-  return { data: row };
 }
 
 export async function linkCustomers(actor: Actor, input: unknown) {
@@ -151,7 +102,7 @@ export async function exportEntity(actor: Actor) {
   const entityId = actor.entityId;
   const [entity] = await db.select().from(entities).where(eq(entities.id, entityId));
   if (!entity) throw notFound("Company not found.");
-  const [brandRows, customerRows, propertyRows, requestRows, quoteRows, jobRows, visitRows, invoiceRows, paymentRows, contractRows, webhookRows, linkRows] =
+  const [brandRows, customerRows, propertyRows, requestRows, quoteRows, jobRows, visitRows, invoiceRows, paymentRows, contractRows, scheduleRows, occurrenceRows, equipmentRows, coveredRows, chargeRows, renewalRows, reminderRows, webhookRows, linkRows] =
     await Promise.all([
       db.select().from(brands).where(eq(brands.entityId, entityId)),
       db.select().from(customers).where(eq(customers.entityId, entityId)),
@@ -174,6 +125,13 @@ export async function exportEntity(actor: Actor) {
         .innerJoin(invoices, eq(invoices.id, payments.invoiceId))
         .where(eq(invoices.entityId, entityId)),
       db.select().from(contracts).where(eq(contracts.entityId, entityId)),
+      db.select().from(contractSchedules).where(eq(contractSchedules.entityId, entityId)),
+      db.select().from(scheduleOccurrences).where(eq(scheduleOccurrences.entityId, entityId)),
+      db.select().from(contractEquipment).where(eq(contractEquipment.entityId, entityId)),
+      db.select().from(contractProperties).where(eq(contractProperties.entityId, entityId)),
+      db.select().from(contractCharges).where(eq(contractCharges.entityId, entityId)),
+      db.select().from(contractRenewals).where(eq(contractRenewals.entityId, entityId)),
+      db.select().from(contractReminders).where(eq(contractReminders.entityId, entityId)),
       db
         .select({
           id: webhookEndpoints.id,
@@ -201,6 +159,13 @@ export async function exportEntity(actor: Actor) {
       invoices: invoiceRows,
       payments: paymentRows,
       contracts: contractRows,
+      contractSchedules: scheduleRows,
+      scheduleOccurrences: occurrenceRows,
+      contractEquipment: equipmentRows,
+      contractProperties: coveredRows,
+      contractCharges: chargeRows,
+      contractRenewals: renewalRows,
+      contractReminders: reminderRows,
       webhooks: webhookRows,
       links: linkRows.map((link) => ({
         id: link.id,
