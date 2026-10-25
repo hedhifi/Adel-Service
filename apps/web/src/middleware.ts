@@ -4,7 +4,8 @@ const PUBLIC = [
   /^\/login$/,
   /^\/q\//,
   /^\/api\/auth\/login$/,
-  /^\/api\/health$/,
+  /^\/api\/health(\/.*)?$/,
+  /^\/offline\.html$/,
   /^\/api\/openapi$/,
   /^\/api\/v1\/public\//,
   /^\/api\/stripe\/webhook$/,
@@ -15,25 +16,31 @@ const PUBLIC = [
 ];
 
 export function middleware(req: NextRequest) {
+  const secure = (process.env.APP_URL ?? "").startsWith("https://") || req.headers.get("x-forwarded-proto") === "https";
+  const finishRequest = (response: NextResponse) => {
+    if (secure) response.headers.set("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+    return response;
+  };
+
   const { pathname } = req.nextUrl;
-  if (PUBLIC.some((pattern) => pattern.test(pathname))) return NextResponse.next();
+  if (PUBLIC.some((pattern) => pattern.test(pathname))) return finishRequest(NextResponse.next());
 
   if (pathname.startsWith("/api/")) {
     const header = req.headers.get("authorization");
     const session = req.cookies.get("adel_session");
     if (!header && !session) {
-      return NextResponse.json({ error: "unauthenticated", message: "Sign in required." }, { status: 401 });
+      return finishRequest(NextResponse.json({ error: "unauthenticated", message: "Sign in required." }, { status: 401 }));
     }
-    return NextResponse.next();
+    return finishRequest(NextResponse.next());
   }
 
   if (!req.cookies.get("adel_session")) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     if (pathname !== "/") url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
+    return finishRequest(NextResponse.redirect(url));
   }
-  return NextResponse.next();
+  return finishRequest(NextResponse.next());
 }
 
 export const config = {

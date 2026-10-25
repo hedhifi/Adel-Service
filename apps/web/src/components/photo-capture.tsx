@@ -2,9 +2,11 @@
 
 import { VoiceField } from "@/components/voice-field";
 import { buttonClass, ghostClass } from "@/components/ui";
+import { idbPhotoOutbox } from "@/lib/photo-outbox";
 import {
   TAKE_PHOTO_LABEL,
   captureAttributeSupported,
+  flushPhotoOutbox,
   libraryInput,
   openCamera,
   planPhotoCapture,
@@ -38,19 +40,45 @@ export function PhotoCapture({
   const [snapshot, setSnapshot] = useState<UploadSnapshot>(idle);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState("");
+  const [waiting, setWaiting] = useState(0);
   const library = libraryInput();
 
   if (!uploaderRef.current) {
-    uploaderRef.current = new PhotoUploader(`/api/v1/visits/${visitId}/photos`, xhrTransport(), (next) => {
-      if (next.phase === "done") {
-        setSnapshot(idle);
-        setCameraError("");
-        router.refresh();
-        return;
-      }
-      setSnapshot(next);
-    });
+    uploaderRef.current = new PhotoUploader(
+      `/api/v1/visits/${visitId}/photos`,
+      xhrTransport(),
+      (next) => {
+        if (next.phase === "done") {
+          setSnapshot(idle);
+          setCameraError("");
+          router.refresh();
+          return;
+        }
+        setSnapshot(next);
+      },
+      idbPhotoOutbox(),
+    );
   }
+
+  useEffect(() => {
+    const store = idbPhotoOutbox();
+    let cancel = false;
+    const flush = () => {
+      void flushPhotoOutbox(store, xhrTransport(), {
+        skipIds: uploaderRef.current?.holdId ? [uploaderRef.current.holdId] : [],
+      }).then((result) => {
+        if (cancel) return;
+        setWaiting(result.remaining);
+        if (result.sent > 0) router.refresh();
+      });
+    };
+    flush();
+    window.addEventListener("online", flush);
+    return () => {
+      cancel = true;
+      window.removeEventListener("online", flush);
+    };
+  }, [router]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -196,6 +224,12 @@ export function PhotoCapture({
           <p className="text-xs text-muted">Uploading {snapshot.progress}%</p>
           <progress className="h-2 w-full" max={100} value={snapshot.progress} aria-label="Upload progress" />
         </div>
+      ) : null}
+      {waiting > 0 ? (
+        <p className="text-sm text-muted" role="status">
+          {waiting === 1 ? "1 photo is saved on this phone" : `${waiting} photos are saved on this phone`} and will upload when
+          you're back online.
+        </p>
       ) : null}
       {snapshot.phase === "failed" ? (
         <div className="space-y-2">

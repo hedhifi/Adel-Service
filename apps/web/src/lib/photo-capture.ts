@@ -88,8 +88,83 @@ export function uploadProgress(loaded: number, total: number) {
   return Math.min(100, Math.max(0, Math.round((loaded / total) * 100)));
 }
 
+export type PhotoHold = {
+  id: string;
+  url: string;
+  filename: string;
+  type: string;
+  caption: string;
+  rawCaption: string;
+  bytes: Uint8Array;
+  createdAt: number;
+};
+
+export type PhotoOutbox = {
+  list(): Promise<PhotoHold[]>;
+  put(record: PhotoHold): Promise<void>;
+  delete(id: string): Promise<void>;
+};
+
+export function memoryOutbox(): PhotoOutbox {
+  const records = new Map<string, PhotoHold>();
+  return {
+    async list() {
+      return [...records.values()].sort((left, right) => left.createdAt - right.createdAt);
+    },
+    async put(record) {
+      records.set(record.id, record);
+    },
+    async delete(id) {
+      records.delete(id);
+    },
+  };
+}
+
+export async function rememberPhoto(store: PhotoOutbox, record: PhotoHold, max = 10) {
+  await store.put(record);
+  const all = await store.list();
+  const extra = all.length - max;
+  for (let index = 0; index < extra; index += 1) {
+    const oldest = all[index];
+    if (oldest) await store.delete(oldest.id);
+  }
+}
+
+export async function flushPhotoOutbox(
+  store: PhotoOutbox,
+  transport: UploadTransport,
+  options?: { skipIds?: string[] },
+) {
+  let sent = 0;
+  let dropped = 0;
+  for (const record of await store.list()) {
+    if (options?.skipIds?.includes(record.id)) continue;
+    const copy = new ArrayBuffer(record.bytes.byteLength);
+    new Uint8Array(copy).set(record.bytes);
+    const body = buildPhotoForm(new Blob([copy], { type: record.type || "image/jpeg" }), record.filename, {
+      caption: record.caption,
+      rawCaption: record.rawCaption,
+    });
+    try {
+      const result = await transport({ url: record.url, body, onProgress: () => {} });
+      if (result.ok) {
+        await store.delete(record.id);
+        sent += 1;
+      } else if (result.status > 0 && result.status < 500) {
+        await store.delete(record.id);
+        dropped += 1;
+      }
+    } catch {
+      // Keep the photo until the phone has a connection again.
+    }
+  }
+  const remaining = (await store.list()).length;
+  return { sent, dropped, remaining };
+}
+
 export class PhotoUploader {
   snapshot: UploadSnapshot = { phase: "idle", progress: 0, error: "" };
+  holdId: string | null = null;
   private file: Blob | null = null;
   private filename = "photo.jpg";
   private fields: CaptionFields = {};
@@ -98,6 +173,7 @@ export class PhotoUploader {
     private readonly url: string,
     private readonly transport: UploadTransport,
     private readonly onChange: (snapshot: UploadSnapshot) => void = () => {},
+    private readonly outbox?: PhotoOutbox,
   ) {}
 
   private emit(next: UploadSnapshot) {
@@ -109,6 +185,7 @@ export class PhotoUploader {
     this.file = file;
     this.filename = filename;
     this.fields = fields;
+    this.holdId = crypto.randomUUID();
     await this.run();
   }
 
@@ -116,6 +193,26 @@ export class PhotoUploader {
     if (!this.file || this.snapshot.phase !== "failed") return;
     if (fields) this.fields = fields;
     await this.run();
+  }
+
+  private async hold(status: number | null) {
+    if (!this.outbox || !this.file || !this.holdId) return;
+    const network = status === null || status === 0 || status >= 500;
+    if (!network) {
+      await this.outbox.delete(this.holdId);
+      return;
+    }
+    const bytes = new Uint8Array(await this.file.arrayBuffer());
+    await rememberPhoto(this.outbox, {
+      id: this.holdId,
+      url: this.url,
+      filename: this.filename,
+      type: this.file.type || "image/jpeg",
+      caption: this.fields.caption ?? "",
+      rawCaption: this.fields.rawCaption ?? "",
+      bytes,
+      createdAt: Date.now(),
+    });
   }
 
   private async run() {
@@ -130,6 +227,7 @@ export class PhotoUploader {
         },
       });
       if (!result.ok) {
+        await this.hold(result.status);
         this.emit({
           phase: "failed",
           progress: this.snapshot.progress,
@@ -137,8 +235,10 @@ export class PhotoUploader {
         });
         return;
       }
+      if (this.outbox && this.holdId) await this.outbox.delete(this.holdId);
       this.emit({ phase: "done", progress: 100, error: "" });
     } catch {
+      await this.hold(null);
       this.emit({ phase: "failed", progress: this.snapshot.progress, error: "Couldn't upload that photo." });
     }
   }

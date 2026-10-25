@@ -7,10 +7,13 @@ import {
   TAKE_PHOTO_LABEL,
   captureAttributeSupported,
   describePhotoCapture,
+  flushPhotoOutbox,
   libraryInput,
+  memoryOutbox,
   openCamera,
   planPhotoCapture,
   type UploadSnapshot,
+  type UploadTransport,
 } from "../apps/web/src/lib/photo-capture";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -109,6 +112,30 @@ describe("photo capture", () => {
     });
     expect(opened).toBe(stream);
     expect(asked).toEqual([{ facingMode: "environment" }, true]);
+  });
+
+  it("keeps a failed photo and sends it when the network returns", async () => {
+    const outbox = memoryOutbox();
+    let online = false;
+    const transport: UploadTransport = async () => {
+      if (!online) throw new Error("network");
+      return { ok: true, status: 201 };
+    };
+    const uploader = new PhotoUploader("/api/v1/visits/visit/photos", transport, () => {}, outbox);
+    await uploader.send(new Blob([Uint8Array.from([1, 2, 3, 4])], { type: "image/jpeg" }), "photo.jpg", {
+      caption: "Panel",
+    });
+    expect(uploader.snapshot.phase).toBe("failed");
+    expect(await outbox.list()).toHaveLength(1);
+
+    const skipped = await flushPhotoOutbox(outbox, transport, { skipIds: [uploader.holdId ?? ""] });
+    expect(skipped.sent).toBe(0);
+    expect(skipped.remaining).toBe(1);
+
+    online = true;
+    const flushed = await flushPhotoOutbox(outbox, transport);
+    expect(flushed.sent).toBe(1);
+    expect(await outbox.list()).toEqual([]);
   });
 
   it("uses the same component on the tech visit and the office job", () => {

@@ -12,7 +12,7 @@
     "./ids": "./src/ids.ts"
   },
   "scripts": {
-    "migrate": "tsx src/migrate.ts",
+    "migrate": "node migrate.mjs",
     "seed": "tsx src/seed.ts",
     "typecheck": "tsc --noEmit"
   },

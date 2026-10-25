@@ -1,4 +1,4 @@
-import { AppError, authenticateBearer, authenticateSessionToken, type Actor } from "@adel/core";
+import { AppError, authenticateBearer, authenticateSessionToken, log, type Actor } from "@adel/core";
 
 export function readCookie(header: string | null, name: string) {
   if (!header) return null;
@@ -38,19 +38,24 @@ export function handle(fn: (req: Request, ctx: { params: Record<string, string> 
       if (err instanceof AppError) {
         return Response.json({ error: err.code, message: err.message }, { status: err.status });
       }
-      console.error(err);
+      log("error", "request failed", { message: err instanceof Error ? err.message : "unknown" });
       return Response.json({ error: "internal_error", message: "Something went wrong." }, { status: 500 });
     }
   };
 }
 
+export function cookieSecure() {
+  return process.env.NODE_ENV === "production" || (process.env.APP_URL ?? "").startsWith("https://");
+}
+
 export function sessionCookie(token: string) {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  const secure = cookieSecure() ? "; Secure" : "";
   return `adel_session=${encodeURIComponent(token)}; HttpOnly; Path=/; Max-Age=1209600; SameSite=Lax${secure}`;
 }
 
 export function clearSessionCookie() {
-  return "adel_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax";
+  const secure = cookieSecure() ? "; Secure" : "";
+  return `adel_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${secure}`;
 }
 
 export function search(req: Request) {

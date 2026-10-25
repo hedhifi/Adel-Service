@@ -1,3 +1,4 @@
+import { FieldStatus } from "@/components/field-status";
 import { LocationReporter } from "@/components/location-reporter";
 import { logoutAction, switchEntityAction } from "@/server/actions";
 import { requireUser } from "@/server/session";
@@ -39,6 +40,7 @@ export default async function TechLayout({ children }: { children: React.ReactNo
         </div>
       </header>
       <main className="px-4 py-4">
+        <FieldStatus />
         <LocationReporter />
         {children}
       </main>

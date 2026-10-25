@@ -4,9 +4,8 @@ import { useEffect } from "react";
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-    }
+    if (!window.isSecureContext || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => undefined);
   }, []);
   return null;
 }

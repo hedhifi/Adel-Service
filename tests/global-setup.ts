@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 export default async function setup() {
   const databaseUrl = process.env.TEST_DATABASE_URL ?? "postgres://adel:adel@localhost:5432/adel_test";
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  execFileSync("pnpm", ["--filter", "@adel/db", "exec", "tsx", "src/migrate.ts"], {
+  execFileSync("node", ["packages/db/migrate.mjs"], {
     cwd: root,
     stdio: "inherit",
     env: {

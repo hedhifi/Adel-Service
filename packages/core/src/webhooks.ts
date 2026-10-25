@@ -1,9 +1,10 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { db, webhookDeliveries, webhookEndpoints } from "@adel/db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Tx } from "./db";
 import { AppError } from "./errors";
+import { log } from "./log";
 import { parse } from "./parse";
 import { assertOffice, type Actor } from "./permissions";
 
@@ -46,12 +47,11 @@ export async function emitEvent(tx: Tx, event: WebhookEvent, data: Record<string
   }
 }
 
-export async function deliverPending(limit = 25) {
-  const pending = await db
-    .select()
-    .from(webhookDeliveries)
-    .where(eq(webhookDeliveries.status, "pending"))
-    .limit(limit);
+export async function deliverPending(limit = 25, options?: { retryFailed?: boolean }) {
+  const due = options?.retryFailed
+    ? sql`(${webhookDeliveries.status} = 'pending' or (${webhookDeliveries.status} = 'failed' and ${webhookDeliveries.attemptCount} < 5 and ${webhookDeliveries.createdAt} <= now() - (${webhookDeliveries.attemptCount} * interval '2 minutes')))`
+    : eq(webhookDeliveries.status, "pending");
+  const pending = await db.select().from(webhookDeliveries).where(due).orderBy(asc(webhookDeliveries.createdAt)).limit(limit);
 
   for (const delivery of pending) {
     const [endpoint] = await db
@@ -94,6 +94,9 @@ export async function deliverPending(limit = 25) {
           deliveredAt: response.ok ? new Date() : null,
         })
         .where(eq(webhookDeliveries.id, delivery.id));
+      if (!response.ok) {
+        log("warn", "webhook delivery failed", { deliveryId: delivery.id, endpointId: endpoint.id, status: response.status });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Delivery failed";
       await db
@@ -104,15 +107,17 @@ export async function deliverPending(limit = 25) {
           attemptCount: delivery.attemptCount + 1,
         })
         .where(eq(webhookDeliveries.id, delivery.id));
+      log("warn", "webhook delivery failed", { deliveryId: delivery.id, endpointId: endpoint.id, message });
     }
   }
+  return pending.length;
 }
 
 export async function safeDeliver() {
   try {
     await deliverPending();
   } catch (err) {
-    console.error("webhook delivery failed", err);
+    log("error", "webhook delivery failed", { message: err instanceof Error ? err.message : "Delivery failed" });
   }
 }
 
