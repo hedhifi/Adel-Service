@@ -23,7 +23,10 @@ export default async function TechHome({ searchParams }: { searchParams: Promise
         <Link href="/tech">Today</Link>
         <Link href={`/tech?day=${shiftDay(day, 1)}`}>Next</Link>
       </div>
-      <p className="text-sm text-muted">Install Adel Service from the browser menu to keep it on your home screen.</p>
+      <p className="text-sm text-muted">
+        On a phone, open this page over HTTPS and use Add to Home Screen. The icon launches the field app full screen, with the
+        camera and location available while you work.
+      </p>
       {notices.data.length ? (
         <ul className="space-y-2">
           {notices.data.map((notice) => (

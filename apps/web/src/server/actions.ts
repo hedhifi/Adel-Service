@@ -45,6 +45,7 @@ import {
   switchEntity,
   updateSpeechTerm,
 } from "@adel/core";
+import { cookieSecure } from "@/lib/http";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireOffice, requireUser } from "./session";
@@ -88,7 +89,7 @@ export async function loginAction(formData: FormData) {
     jar.set("adel_session", result.token, {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: cookieSecure(),
       path: "/",
       maxAge: 60 * 60 * 24 * 14,
     });
@@ -106,7 +107,13 @@ export async function logoutAction() {
   const jar = await cookies();
   const token = jar.get("adel_session")?.value;
   if (token) await logoutSession(token);
-  jar.delete("adel_session");
+  jar.set("adel_session", "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: cookieSecure(),
+    path: "/",
+    maxAge: 0,
+  });
   redirect("/login");
 }
 

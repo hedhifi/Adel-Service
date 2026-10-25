@@ -1,0 +1,6 @@
+# Used by docker-compose.prod.yml --profile https.
+# Caddy obtains a certificate for APP_DOMAIN and proxies to the app.
+{$APP_DOMAIN} {
+	encode gzip
+	reverse_proxy app:3000
+}

@@ -1,0 +1,79 @@
+# Render Blueprint. Nothing is created until someone applies it in a Render account.
+# Plan ids follow Render's October 2026 pricing page. If a plan name is rejected,
+# pick a 512 MB web instance and a 1 GB Postgres instance in the dashboard.
+# Secrets marked sync: false are filled in the dashboard. Do not commit live keys.
+
+services:
+  - type: web
+    name: adel-service
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: ohio
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADEL_SERVER
+        value: "1"
+      - key: RUN_MIGRATIONS
+        value: "true"
+      - key: STORAGE_DRIVER
+        value: s3
+      - key: S3_REGION
+        value: auto
+      - key: S3_FORCE_PATH_STYLE
+        value: "false"
+      - key: APP_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: adel-db
+          property: connectionString
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+  - type: cron
+    name: adel-cron
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: ohio
+    plan: starter
+    schedule: "*/5 * * * *"
+    dockerCommand: node scripts/cron-once.mjs
+    envVars:
+      - key: APP_URL
+        fromService:
+          type: web
+          name: adel-service
+          envVarKey: APP_URL
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: adel-service
+          envVarKey: CRON_SECRET
+
+databases:
+  - name: adel-db
+    plan: basic-1gb
+    region: ohio
+    postgresMajorVersion: "16"
+    ipAllowList: []

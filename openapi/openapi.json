@@ -61,13 +61,47 @@
           "Auth"
         ],
         "security": [],
-        "summary": "Liveness and database check",
+        "summary": "Readiness. Database is up and photo storage is configured.",
         "responses": {
           "200": {
-            "description": "Database answered"
+            "description": "Ready"
           },
           "503": {
-            "description": "Database unreachable"
+            "description": "Database down, storage misconfigured, or a live Stripe key was refused"
+          }
+        }
+      }
+    },
+    "/api/health/live": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "summary": "Process is up. Does not check the database.",
+        "responses": {
+          "200": {
+            "description": "Process is up"
+          }
+        }
+      }
+    },
+    "/api/cron/run": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "summary": "Retry webhooks, purge old locations, and send due reminders. Requires Authorization Bearer CRON_SECRET.",
+        "responses": {
+          "200": {
+            "description": "Jobs finished"
+          },
+          "401": {
+            "description": "Wrong secret"
+          },
+          "503": {
+            "description": "CRON_SECRET is not configured"
           }
         }
       }

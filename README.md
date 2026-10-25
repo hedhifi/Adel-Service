@@ -69,6 +69,7 @@ Seeded work includes a new request, a sent estimate with a public link, visits f
 ```bash
 pnpm test
 pnpm typecheck
+pnpm build
 ```
 
 Tests use `TEST_DATABASE_URL` (`adel_test` by default) and do not touch the dev database.
@@ -99,7 +100,11 @@ The process speaks MCP on stdin/stdout. Point an MCP client at `pnpm mcp` from t
 
 ### Technician install
 
-On a phone, open `/tech` in the browser and use Add to Home Screen. `manifest.webmanifest` and `sw.js` make that installable. It is a web app, not a native store build.
+On a phone, open `/tech` over HTTPS and use Add to Home Screen. `manifest.webmanifest` and `sw.js` make that installable. The camera, microphone, and location stay available in the installed app. If the signal drops, the shell shows an offline page, and photos and location points already captured stay on the phone until the next connection. It is a web app, not a native store build.
+
+### Hosting
+
+Nothing in this repo is deployed. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) covers the production image, migrations, S3-compatible photos, health checks, cron, backups, and three ways to host it once a provider is chosen. Stripe stays in test mode.
 
 ### Voice on the phone
 

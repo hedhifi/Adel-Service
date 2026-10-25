@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "pnpm --filter @adel/web dev",
     "build": "pnpm --filter @adel/web build",
+    "start": "pnpm --filter @adel/web start",
     "test": "vitest run",
     "typecheck": "pnpm -r --filter \"./packages/*\" --filter @adel/web --if-present typecheck",
     "db:migrate": "pnpm --filter @adel/db migrate",

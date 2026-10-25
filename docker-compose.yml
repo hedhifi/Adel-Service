@@ -1,3 +1,4 @@
+# Local Postgres for `pnpm dev` and tests. The hosted stack is docker-compose.prod.yml.
 services:
   postgres:
     image: postgres:16

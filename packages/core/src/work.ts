@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { summarizeMoney } from "@adel/db/money";
 import { companyToday } from "@adel/db/zoned";
 import {
@@ -32,6 +30,7 @@ import { assertOffice, type Actor } from "./permissions";
 import { assertActiveBook, assertVisible } from "./scope";
 import { assertProperty } from "./records";
 import { getCompanySettings } from "./settings";
+import { objectStore } from "./storage";
 import { emitEvent, safeDeliver } from "./webhooks";
 
 const PHOTO_TYPES: Record<string, string> = {
@@ -40,10 +39,7 @@ const PHOTO_TYPES: Record<string, string> = {
   "image/webp": "webp",
 };
 
-export function uploadRoot() {
-  const configured = process.env.UPLOAD_DIR ?? "data/uploads";
-  return path.isAbsolute(configured) ? configured : path.resolve(process.cwd(), configured);
-}
+export { uploadRoot } from "./storage";
 
 async function recomputeJob(tx: Tx, jobId: string) {
   const rows = await tx.select().from(visits).where(eq(visits.jobId, jobId));
@@ -528,17 +524,15 @@ export async function addVisitPhoto(
   visitId: string,
   file: { bytes: Buffer; contentType: string; caption?: string | null; rawCaption?: string | null },
 ) {
-  await requireVisit(actor, visitId);
+  const visit = await requireVisit(actor, visitId);
   const extension = PHOTO_TYPES[file.contentType];
   if (!extension) throw new AppError(400, "Upload a JPEG, PNG, or WebP photo.", "invalid_file");
   if (file.bytes.length === 0 || file.bytes.length > 8_000_000) {
     throw new AppError(400, "Photos need to be under 8 MB.", "invalid_file");
   }
   const photoId = randomUUID();
-  const storageKey = path.join(visitId, `${photoId}.${extension}`);
-  const fullPath = path.join(uploadRoot(), storageKey);
-  await mkdir(path.dirname(fullPath), { recursive: true });
-  await writeFile(fullPath, file.bytes);
+  const storageKey = `${visit.id}/${photoId}.${extension}`;
+  await objectStore().put(storageKey, file.bytes, file.contentType);
   const [photo] = await db
     .insert(visitPhotos)
     .values({
@@ -563,7 +557,7 @@ export async function readVisitPhoto(actor: Actor, visitId: string, photoId: str
     .from(visitPhotos)
     .where(and(eq(visitPhotos.id, photoId), eq(visitPhotos.visitId, visitId)));
   if (!photo) throw notFound("Photo not found.");
-  const bytes = await readFile(path.join(uploadRoot(), photo.storageKey));
+  const bytes = await objectStore().get(photo.storageKey);
   return { bytes, contentType: photo.contentType };
 }
 
