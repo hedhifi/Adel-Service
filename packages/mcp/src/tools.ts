@@ -42,6 +42,11 @@ export const TOOL_NAMES = [
   "update_term",
   "delete_term",
   "suggest_term",
+  "get_books",
+  "get_quickbooks",
+  "sync_quickbooks",
+  "list_intercompany",
+  "record_intercompany_charge",
 ] as const;
 
 export function registerTools(server: McpServer) {
@@ -267,5 +272,46 @@ export function registerTools(server: McpServer) {
       inputSchema: { phrase: z.string() },
     },
     async (input) => call("POST", "/api/v1/terms/suggestions", input),
+  );
+  server.registerTool(
+    "get_books",
+    { description: "Ledger, receivables aging, revenue, payments, and intercompany balance for this company.", inputSchema: {} },
+    async () => call("GET", "/api/v1/books"),
+  );
+  server.registerTool(
+    "get_quickbooks",
+    {
+      description: "Optional QuickBooks sandbox plug-in. It is off unless the server sets ACCOUNTING_PROVIDER=quickbooks. Tokens are not included.",
+      inputSchema: {},
+    },
+    async () => call("GET", "/api/v1/qbo"),
+  );
+  server.registerTool(
+    "sync_quickbooks",
+    {
+      description: "Optional. Sync this company to its own QuickBooks sandbox. Does nothing useful while the plug-in is off.",
+      inputSchema: {},
+    },
+    async () => call("POST", "/api/v1/qbo/sync"),
+  );
+  server.registerTool(
+    "list_intercompany",
+    { description: "Open intercompany charges and the reconciliation for this company.", inputSchema: {} },
+    async () => call("GET", "/api/v1/intercompany/reconciliation"),
+  );
+  server.registerTool(
+    "record_intercompany_charge",
+    {
+      description: "Record a charge from one company to the other. Requires a login that belongs to both companies.",
+      inputSchema: {
+        supplyingEntityId: z.string().uuid(),
+        consumingEntityId: z.string().uuid(),
+        rateId: z.string().uuid(),
+        quantity: z.string(),
+        description: z.string(),
+        unitAmountCents: z.number().int().optional(),
+      },
+    },
+    async (input) => call("POST", "/api/v1/intercompany/charges", input),
   );
 }

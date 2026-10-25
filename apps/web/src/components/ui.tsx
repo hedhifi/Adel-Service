@@ -90,6 +90,14 @@ const tones: Record<string, string> = {
   failed: "bg-danger-bg text-danger",
   processing: "bg-[#efe7d6] text-[#5c4a2a]",
   succeeded: "bg-ok-bg text-ok",
+  synced: "bg-ok-bg text-ok",
+  conflict: "bg-danger-bg text-danger",
+  open: "bg-[#efe7d6] text-[#5c4a2a]",
+  invoiced: "bg-[#e7eef6] text-[#1e3a5f]",
+  labor: "bg-[#e7efe9] text-pine",
+  material: "bg-[#efe7d6] text-[#5c4a2a]",
+  shared: "bg-[#e7eef6] text-[#1e3a5f]",
+  active: "bg-ok-bg text-ok",
 };
 
 export function StatusPill({ status }: { status: string }) {

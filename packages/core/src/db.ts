@@ -4,7 +4,7 @@ import { AppError } from "./errors";
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-export async function nextNumber(tx: Tx, entityId: string, name: "quote" | "job" | "invoice") {
+export async function nextNumber(tx: Tx, entityId: string, name: "quote" | "job" | "invoice" | "bill") {
   const result = await tx.execute(sql`
     INSERT INTO counters (entity_id, name, value)
     VALUES (${entityId}, ${name}, 1001)

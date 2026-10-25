@@ -13,6 +13,7 @@ export default defineConfig({
     globalSetup: ["./tests/global-setup.ts"],
     setupFiles: ["./tests/truncate.ts"],
     include: ["tests/adel.test.ts"],
+    sequence: { concurrent: false },
     env: {
       DATABASE_URL: databaseUrl,
       TEST_DATABASE_URL: databaseUrl,
@@ -20,6 +21,8 @@ export default defineConfig({
       BCRYPT_ROUNDS: "4",
       UPLOAD_DIR: path.resolve(__dirname, "data/test-uploads"),
       NODE_ENV: "test",
+      QBO_ENVIRONMENT: "sandbox",
+      QBO_PROVIDER: "mock",
     },
   },
   resolve: {
@@ -31,6 +34,7 @@ export default defineConfig({
       "@adel/db/zoned": path.resolve(__dirname, "packages/db/src/zoned.ts"),
       "@adel/db": path.resolve(__dirname, "packages/db/src/index.ts"),
       "@adel/core": path.resolve(__dirname, "packages/core/src/index.ts"),
+      "drizzle-orm": path.resolve(__dirname, "packages/db/node_modules/drizzle-orm"),
     },
   },
 });
