@@ -1,0 +1,2682 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Adel Service API",
+    "version": "0.1.0",
+    "description": "Internal HTTP API for Adel Service, the field-service desk for Adel Electric, LLC.\nAdel Electric and Service Contracts keep separate books in one database.\n\nAuthenticate with a session cookie (`adel_session`) from `POST /api/auth/login`, or with\n`Authorization: Bearer adel_…` from an API token. Tokens are scoped to a role\n(`admin`, `office`, or `tech`). A technician token can only see visits assigned to that person.\n\nMoney is integer cents. Tax rates are basis points (700 = 7%). Webhook bodies are signed\nwith HMAC-SHA256 over `{timestamp}.{rawBody}` and sent as `X-Adel-Signature: sha256=…`.\n"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local dev server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Customers"
+    },
+    {
+      "name": "Requests"
+    },
+    {
+      "name": "Quotes"
+    },
+    {
+      "name": "Jobs"
+    },
+    {
+      "name": "Visits"
+    },
+    {
+      "name": "Invoices"
+    },
+    {
+      "name": "Settings"
+    },
+    {
+      "name": "Public"
+    },
+    {
+      "name": "Location"
+    },
+    {
+      "name": "Entities"
+    }
+  ],
+  "security": [
+    {
+      "cookieAuth": []
+    },
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "summary": "Liveness and database check",
+        "responses": {
+          "200": {
+            "description": "Database answered"
+          },
+          "503": {
+            "description": "Database unreachable"
+          }
+        }
+      }
+    },
+    "/api/openapi": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "summary": "This specification as JSON",
+        "responses": {
+          "200": {
+            "description": "OpenAPI document"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "summary": "Sign in and set the session cookie",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in. Sets `adel_session`."
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "End the current session",
+        "responses": {
+          "200": {
+            "description": "Cookie cleared"
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Current user",
+        "responses": {
+          "200": {
+            "description": "The signed-in person"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/stripe/webhook": {
+      "post": {
+        "tags": [
+          "Invoices"
+        ],
+        "security": [],
+        "summary": "Stripe test-mode webhook",
+        "description": "Verifies `Stripe-Signature` with `STRIPE_WEBHOOK_SECRET`. Live keys are refused.",
+        "responses": {
+          "200": {
+            "description": "Accepted"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/brands": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "List brands for the active company",
+        "responses": {
+          "200": {
+            "description": "Brand list"
+          }
+        }
+      }
+    },
+    "/api/v1/customers": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Search customers",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/q"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of customers"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Create a customer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/customers/{id}": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Customer with properties",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Update a customer",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/customers/{id}/properties": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Add a service location",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/properties/{id}": {
+      "patch": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Update a service location",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/requests": {
+      "get": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "List work requests",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/q"
+          },
+          {
+            "$ref": "#/components/parameters/status"
+          },
+          {
+            "$ref": "#/components/parameters/customerId"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of requests"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Log an inbound request",
+        "description": "Emits `request.created`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/requests/{id}": {
+      "get": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Request detail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Update status or wording",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "new",
+                      "reviewing",
+                      "quoted",
+                      "closed",
+                      "canceled"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/quotes": {
+      "get": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "List estimates",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/status"
+          },
+          {
+            "$ref": "#/components/parameters/customerId"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of estimates"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Draft an estimate with line items",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/quotes/{id}": {
+      "get": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Estimate detail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estimate"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Edit a draft estimate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/quotes/{id}/send": {
+      "post": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Mark an estimate sent and mint a customer link",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sent. Includes a public token."
+          }
+        }
+      }
+    },
+    "/api/v1/quotes/{id}/approve": {
+      "post": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Record an in-person approval",
+        "description": "Emits `quote.approved`. Office may approve a draft or a sent estimate.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "approvedByName"
+                ],
+                "properties": {
+                  "approvedByName": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approved"
+          }
+        }
+      }
+    },
+    "/api/v1/quotes/{id}/decline": {
+      "post": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Decline an estimate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Declined"
+          }
+        }
+      }
+    },
+    "/api/v1/quotes/{id}/convert": {
+      "post": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Turn an approved estimate into an unscheduled job",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job"
+          }
+        }
+      }
+    },
+    "/api/v1/public/quotes/{token}": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "security": [],
+        "summary": "Customer view of a sent estimate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/token"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estimate without the secret token"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/public/quotes/{token}/decision": {
+      "post": {
+        "tags": [
+          "Public"
+        ],
+        "security": [],
+        "summary": "Customer approves or declines a sent estimate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "decision",
+                  "name"
+                ],
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "decline"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/jobs": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "List jobs",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/status"
+          },
+          {
+            "$ref": "#/components/parameters/customerId"
+          },
+          {
+            "$ref": "#/components/parameters/q"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of jobs"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Open a job that did not come from an estimate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Job with visits",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Rename a job or cancel it",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "instructions": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "canceled"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/schedule": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Dispatch board for one day",
+        "parameters": [
+          {
+            "name": "day",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "2026-10-16"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Visits grouped for the office board"
+          }
+        }
+      }
+    },
+    "/api/v1/visits": {
+      "get": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Visits for a day",
+        "description": "Technicians only receive visits assigned to them.",
+        "parameters": [
+          {
+            "name": "day",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "technicianId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Visit list"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Schedule a visit",
+        "description": "Emits `job.scheduled` the first time a job leaves the unscheduled state.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitSchedule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Scheduled"
+          }
+        }
+      }
+    },
+    "/api/v1/visits/{id}": {
+      "get": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Visit detail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Visit"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Update status, assignment, or timing",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "technicianId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "scheduledStart": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "scheduledEnd": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "en_route",
+                      "on_site",
+                      "canceled",
+                      "completed"
+                    ]
+                  },
+                  "internalNotes": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/visits/{id}/notes": {
+      "post": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Add a field note",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "body"
+                ],
+                "properties": {
+                  "body": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Note saved"
+          }
+        }
+      }
+    },
+    "/api/v1/visits/{id}/photos": {
+      "post": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Upload a JPEG, PNG, or WebP photo (max 8 MB)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "caption": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Photo stored"
+          }
+        }
+      }
+    },
+    "/api/v1/visits/{id}/photos/{photoId}": {
+      "get": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Download a visit photo",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "photoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image bytes"
+          }
+        }
+      }
+    },
+    "/api/v1/visits/{id}/signature": {
+      "post": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Save a customer signature",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "signedByName",
+                  "signaturePng"
+                ],
+                "properties": {
+                  "signedByName": {
+                    "type": "string"
+                  },
+                  "signaturePng": {
+                    "type": "string",
+                    "description": "Data URL beginning with data:image/png;base64,"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signature saved"
+          }
+        }
+      }
+    },
+    "/api/v1/visits/{id}/time": {
+      "post": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Clock in or out",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "in",
+                      "out"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Time entry updated"
+          }
+        }
+      }
+    },
+    "/api/v1/visits/{id}/forms": {
+      "post": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Attach a checklist from a template",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "templateId"
+                ],
+                "properties": {
+                  "templateId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Form attached"
+          }
+        }
+      }
+    },
+    "/api/v1/visits/{id}/forms/{formId}": {
+      "put": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Save checklist answers",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "formId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "responses"
+                ],
+                "properties": {
+                  "responses": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "itemId",
+                        "checked"
+                      ],
+                      "properties": {
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "checked": {
+                          "type": "boolean"
+                        },
+                        "note": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved"
+          }
+        }
+      }
+    },
+    "/api/v1/visits/{id}/complete": {
+      "post": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Complete a visit",
+        "description": "Emits `visit.completed`. Technicians must capture a signature when the company\nrequires one, and must finish required checklist items. Office and admin can complete\nwithout those checks.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Completed"
+          }
+        }
+      }
+    },
+    "/api/v1/form-templates": {
+      "get": {
+        "tags": [
+          "Visits"
+        ],
+        "summary": "Checklist templates",
+        "responses": {
+          "200": {
+            "description": "Templates"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices": {
+      "get": {
+        "tags": [
+          "Invoices"
+        ],
+        "summary": "List invoices",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/status"
+          },
+          {
+            "$ref": "#/components/parameters/customerId"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of invoices"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Invoices"
+        ],
+        "summary": "Draft an invoice for a job",
+        "description": "Copies estimate lines when `lineItems` is omitted and the job came from an estimate.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "jobId"
+                ],
+                "properties": {
+                  "jobId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "notes": {
+                    "type": "string"
+                  },
+                  "lineItems": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/LineItem"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Draft invoice"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{id}": {
+      "get": {
+        "tags": [
+          "Invoices"
+        ],
+        "summary": "Invoice detail",
+        "description": "Technicians can read invoices only for jobs they are assigned to.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{id}/issue": {
+      "post": {
+        "tags": [
+          "Invoices"
+        ],
+        "summary": "Issue an invoice",
+        "description": "Emits `invoice.issued`. Due date is 15 days out. One non-void invoice per job.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Issued"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{id}/void": {
+      "post": {
+        "tags": [
+          "Invoices"
+        ],
+        "summary": "Void an invoice that has no successful payment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voided"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{id}/payments": {
+      "post": {
+        "tags": [
+          "Invoices"
+        ],
+        "summary": "Record check, cash, or other payment",
+        "description": "Office and admin only. Emits `payment.received`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "method",
+                  "amountCents"
+                ],
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "check",
+                      "cash",
+                      "other"
+                    ]
+                  },
+                  "amountCents": {
+                    "type": "integer"
+                  },
+                  "reference": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{id}/payment-intent": {
+      "post": {
+        "tags": [
+          "Invoices"
+        ],
+        "summary": "Start a Stripe test-mode card payment for the remaining balance",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "PaymentIntent client secret"
+          },
+          "503": {
+            "description": "Stripe test key is not configured"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{id}/payment-intent/sync": {
+      "post": {
+        "tags": [
+          "Invoices"
+        ],
+        "summary": "Pull PaymentIntent status from Stripe test mode",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "paymentId"
+                ],
+                "properties": {
+                  "paymentId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Synced"
+          }
+        }
+      }
+    },
+    "/api/v1/tokens": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "List API tokens",
+        "description": "Admin only. Secrets are not returned after creation.",
+        "responses": {
+          "200": {
+            "description": "Tokens"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Create an API token",
+        "description": "The secret is returned once. Technician tokens must name an active technician.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "role"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "office",
+                      "tech"
+                    ]
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Token metadata and one-time secret"
+          }
+        }
+      }
+    },
+    "/api/v1/tokens/{id}/revoke": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Revoke an API token",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked"
+          }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "List people",
+        "responses": {
+          "200": {
+            "description": "Users"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Create a login",
+        "description": "Admin only.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "email",
+                  "password",
+                  "role"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 10
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "office",
+                      "tech"
+                    ]
+                  },
+                  "phone": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}": {
+      "patch": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Activate or deactivate a login",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "active"
+                ],
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "List webhook endpoints",
+        "responses": {
+          "200": {
+            "description": "Endpoints. Secrets are omitted."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Create a webhook endpoint",
+        "description": "The signing secret is returned once. Deliveries include\n`X-Adel-Event`, `X-Adel-Delivery`, `X-Adel-Timestamp`, and\n`X-Adel-Signature` (`sha256=` HMAC of `{timestamp}.{raw body}`).\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url",
+                  "events"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "request.created",
+                        "quote.approved",
+                        "job.scheduled",
+                        "visit.completed",
+                        "invoice.issued",
+                        "payment.received"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Endpoint and one-time secret"
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{id}/disable": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Stop deliveries to an endpoint",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disabled"
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{id}/deliveries": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Recent deliveries for an endpoint",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery log"
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Office home counts",
+        "responses": {
+          "200": {
+            "description": "Open work"
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Company settings",
+        "responses": {
+          "200": {
+            "description": "Settings"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Update company settings",
+        "description": "Admin only.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/speech/cleanup": {
+      "post": {
+        "tags": [
+          "Speech"
+        ],
+        "summary": "Clean a dictated transcript",
+        "description": "Fuzzy-corrects dictionary spellings, then optionally rewrites filler through a configured model.\nWith no API key, or when SPEECH_CLEANUP=off, the response is the dictionary-corrected transcript (mode passthrough).\nThe raw speech-engine transcript is returned separately so the field can show the original.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "transcript"
+                ],
+                "properties": {
+                  "transcript": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cleaned text and the original transcript"
+          }
+        }
+      }
+    },
+    "/api/v1/terms": {
+      "get": {
+        "tags": [
+          "Speech"
+        ],
+        "summary": "List dictionary terms",
+        "description": "Technicians see active terms. Office and admin can list suggested terms too.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "suggested"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Terms"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Speech"
+        ],
+        "summary": "Add an active dictionary term",
+        "description": "Office and admin only.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phrase"
+                ],
+                "properties": {
+                  "phrase": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/terms/{id}": {
+      "patch": {
+        "tags": [
+          "Speech"
+        ],
+        "summary": "Edit a term or accept a suggestion",
+        "description": "Office and admin only. Set status to active to accept a technician suggestion.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phrase": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "suggested"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Speech"
+        ],
+        "summary": "Remove a dictionary term",
+        "description": "Office and admin only.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed"
+          }
+        }
+      }
+    },
+    "/api/v1/terms/suggestions": {
+      "post": {
+        "tags": [
+          "Speech"
+        ],
+        "summary": "Suggest a spelling",
+        "description": "Any signed-in user. Suggestions stay out of dictation until office or admin marks them active.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phrase"
+                ],
+                "properties": {
+                  "phrase": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Suggested"
+          }
+        }
+      }
+    },
+    "/api/v1/devices": {
+      "post": {
+        "tags": [
+          "Location"
+        ],
+        "summary": "Issue a device token for a technician phone",
+        "description": "Device tokens are separate from user API tokens and begin with `adeldev_`.\nThe secret is returned once. Pass `acknowledge: true` only after the technician\nhas seen the written location notice.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "acknowledge": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Device token secret, returned once"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/acknowledge": {
+      "post": {
+        "tags": [
+          "Location"
+        ],
+        "security": [],
+        "summary": "Acknowledge the location notice for a device token",
+        "description": "Send Authorization Bearer adeldev_…. Tracking is refused until this succeeds.",
+        "responses": {
+          "200": {
+            "description": "Device acknowledged"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/locations": {
+      "get": {
+        "tags": [
+          "Location"
+        ],
+        "summary": "Today's breadcrumb trail",
+        "description": "A technician can read only their own trail. Office and admin can pass `technicianId`.\n",
+        "parameters": [
+          {
+            "name": "technicianId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "day",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Points for that person and day"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Location"
+        ],
+        "security": [],
+        "summary": "Ingest a batch of location points",
+        "description": "Authenticate with a device token that begins with adeldev_. Each point needs a timestamp,\nlatitude, longitude, accuracy in meters, and battery percent. Points outside the\nconfigured tracking hours are skipped. Points older than the retention window are\nnot stored. The device must have acknowledged the written notice.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "points"
+                ],
+                "properties": {
+                  "points": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "recordedAt",
+                        "latitude",
+                        "longitude",
+                        "accuracyMeters",
+                        "batteryPercent"
+                      ],
+                      "properties": {
+                        "recordedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "latitude": {
+                          "type": "number"
+                        },
+                        "longitude": {
+                          "type": "number"
+                        },
+                        "accuracyMeters": {
+                          "type": "number"
+                        },
+                        "batteryPercent": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored and skipped counts"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/locations/live": {
+      "get": {
+        "tags": [
+          "Location"
+        ],
+        "summary": "Office live map",
+        "description": "Last position, freshness, today's trail, job pins, and en-route ETA. Office or admin.",
+        "responses": {
+          "200": {
+            "description": "Map payload"
+          }
+        }
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "Location"
+        ],
+        "summary": "In-app notifications for the signed-in person",
+        "description": "Includes a missing field-report reminder after a geofence departure, at most once per visit.",
+        "responses": {
+          "200": {
+            "description": "Notifications"
+          }
+        }
+      }
+    },
+    "/api/v1/contracts": {
+      "get": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "List contracts for the active company",
+        "responses": {
+          "200": {
+            "description": "Contracts"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Create a contract in the active company",
+        "description": "Customer, property, start, end, status, and notes. No recurring visits or billing.",
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/entities": {
+      "patch": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Rename the active company",
+        "description": "Admin only. Changes the name shown in the switcher.",
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      }
+    },
+    "/api/v1/entities/export": {
+      "get": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Export the active company's books",
+        "description": "Customers, jobs, invoices, payments, contracts, and link-layer endpoints for this company only.",
+        "responses": {
+          "200": {
+            "description": "Extract"
+          }
+        }
+      }
+    },
+    "/api/v1/entities/links": {
+      "get": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "List link-layer rows that touch the active company",
+        "responses": {
+          "200": {
+            "description": "Links"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Link a customer in the active company to a customer in another company",
+        "description": "Record ids are stored without a foreign key. This is the only cross-company reference.",
+        "responses": {
+          "201": {
+            "description": "Link"
+          }
+        }
+      }
+    },
+    "/api/v1/entities/switch": {
+      "post": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Switch the session's active company",
+        "description": "API tokens cannot switch. Writes after this call land in the selected company.",
+        "responses": {
+          "200": {
+            "description": "Active company"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "adel_session"
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API token beginning with adel_"
+      }
+    },
+    "parameters": {
+      "id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "token": {
+        "name": "token",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "q": {
+        "name": "q",
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "status": {
+        "name": "status",
+        "in": "query",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customerId": {
+        "name": "customerId",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        }
+      },
+      "offset": {
+        "name": "offset",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Request failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Login": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "CustomerWrite": {
+        "type": "object",
+        "required": [
+          "brandId",
+          "name"
+        ],
+        "properties": {
+          "brandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PropertyWrite": {
+        "type": "object",
+        "required": [
+          "label",
+          "line1",
+          "city",
+          "postalCode"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "line1": {
+            "type": "string"
+          },
+          "line2": {
+            "type": "string",
+            "nullable": true
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "Two-letter code. Defaults to FL on create."
+          },
+          "postalCode": {
+            "type": "string"
+          },
+          "accessNotes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RequestWrite": {
+        "type": "object",
+        "required": [
+          "customerId",
+          "propertyId",
+          "brandId",
+          "title",
+          "description"
+        ],
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propertyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "phone",
+              "email",
+              "in_person",
+              "web",
+              "other"
+            ]
+          }
+        }
+      },
+      "LineItem": {
+        "type": "object",
+        "required": [
+          "description",
+          "quantity",
+          "unitAmountCents",
+          "taxable"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "labor",
+              "material",
+              "other"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "example": "1.50"
+          },
+          "unitAmountCents": {
+            "type": "integer"
+          },
+          "taxable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "QuoteWrite": {
+        "type": "object",
+        "required": [
+          "customerId",
+          "propertyId",
+          "brandId",
+          "title",
+          "lineItems"
+        ],
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propertyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "taxRateBps": {
+            "type": "integer"
+          },
+          "lineItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineItem"
+            }
+          }
+        }
+      },
+      "JobWrite": {
+        "type": "object",
+        "required": [
+          "customerId",
+          "propertyId",
+          "brandId",
+          "title"
+        ],
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propertyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          }
+        }
+      },
+      "VisitSchedule": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "scheduledStart",
+          "scheduledEnd"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "technicianId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "scheduledStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scheduledEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "formTemplateId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SettingsWrite": {
+        "type": "object",
+        "required": [
+          "legalName",
+          "timeZone",
+          "defaultTaxRateBps",
+          "taxLabel",
+          "requireSignatureToComplete",
+          "shopAddress"
+        ],
+        "properties": {
+          "legalName": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string",
+            "enum": [
+              "America/New_York",
+              "America/Chicago"
+            ]
+          },
+          "defaultTaxRateBps": {
+            "type": "integer"
+          },
+          "taxLabel": {
+            "type": "string"
+          },
+          "requireSignatureToComplete": {
+            "type": "boolean"
+          },
+          "shopAddress": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+node_modules
+.pnpm-store
+.next
+dist
+out
+coverage
+.env
+.env.local
+.env.*.local
+!.env.example
+data
+*.tsbuildinfo
+.DS_Store
+.playwright-mcp
+npm-debug.log*
+pnpm-debug.log*
